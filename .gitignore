@@ -1,0 +1,8 @@
+build/
+*.class
+__pycache__/
+.vscode/
+.idea/
+*.zip
+results_new*/
+.env
