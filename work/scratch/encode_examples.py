@@ -59,6 +59,9 @@ def rollback(t, name):
     return frame(7, u32(t) + bytes([name]))
 
 
+def checkpoint(*ids):
+    return frame(8, bytes([len(ids)]) + b"".join(u32(i) for i in ids))
+
 def hx(bs):
     return " ".join(f"{b:02X}" for b in bs)
 
@@ -138,3 +141,15 @@ ex4 = [
     ("COMMIT txn 1", commit(1)),
 ]
 show("Example 4", ex4)
+
+# Example 5 (P8 round 3 hardening, v4, L3): checkpoints list the open transactions.
+ex5 = [
+    ("header", MAGIC),
+    ("BEGIN txn 2", begin(2)),
+    ("BEGIN txn 1", begin(1)),
+    ('PUT txn 1 "a"="1"', put(1, "a", "1")),
+    ("CHECKPOINT [1, 2]", checkpoint(1, 2)),
+    ("COMMIT txn 1", commit(1)),
+    ("CHECKPOINT [2]", checkpoint(2)),
+]
+show("Example 5", ex5)

@@ -21,7 +21,8 @@ public final class WalRecovery {
         BAD_MAGIC, UNKNOWN_TYPE, RECORD_TOO_LARGE, CHECKSUM_MISMATCH,
         MALFORMED_PAYLOAD, BAD_TXN_ID, BAD_KEY, BAD_VALUE,
         DUPLICATE_TXN, TOO_MANY_OPEN, TXN_NOT_OPEN,
-        TXN_TOO_LARGE, BAD_NAME, NO_SAVEPOINT
+        TXN_TOO_LARGE, BAD_NAME, NO_SAVEPOINT,
+        CHECKPOINT_MISMATCH
     }
 
     public static final class WalException extends Exception {

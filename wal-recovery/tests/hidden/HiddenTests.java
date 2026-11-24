@@ -23,7 +23,8 @@ import java.util.List;
  * D payload structure (H25-H31), E field checks (H32-H40), F transactions (H41-H52),
  * G precedence and interactions (H53-H61), H API contract (H62-H63),
  * I coverage gaps found by the P7 audit (H64-H69), J write limit L1 (H70-H77),
- * K savepoints L2 (H78-H99), L coverage gaps found by the v3 audit (H100-H101).
+ * K savepoints L2 (H78-H99), L coverage gaps found by the v3 audit (H100-H101),
+ * M checkpoints L3 (H102-H118, H119-H123 added by the v4 audit).
  */
 public final class HiddenTests {
     private HiddenTests() {}
@@ -147,7 +148,7 @@ public final class HiddenTests {
         // Derivation:
         //   1. Header ok. BEGIN 1 @4, size 9, ends 13 (1C 06). Then bytes 09 00 00 @13. L = 16.
         //   2. p = 4: intact as in H08 (R9 13 <= 16), p = 13.
-        //   3. p = 13: R5 13 != 16; R6 L-p = 3, not 1 or 2; R7 type byte 09 is not 1..7 ->
+        //   3. p = 13: R5 13 != 16; R6 L-p = 3, not 1 or 2; R7 type byte 09 is not 1..8 ->
         //      throw UNKNOWN_TYPE at 13.
         // Expected: ERR UNKNOWN_TYPE@13
         c.add(TestCase.of("H09", "tail_three_leftover_bytes_unknown_type_is_error", "R6,R7",
@@ -162,25 +163,25 @@ public final class HiddenTests {
         //      correct checksum (00 00 04 00 00 00 01; s1 0,0,4,4,4,4,5; s2 0,0,4,8,12,16,21
         //      -> 15 05). COMMIT 1 @22, size 9, ends 31 (31 09). L = 31.
         //   2. p = 4: intact (R9 13 <= 31, R10 correct), p = 13.
-        //   3. p = 13: R5 no; R6 L-p = 18; R7 type 0 is not 1..7 -> throw UNKNOWN_TYPE at 13.
+        //   3. p = 13: R5 no; R6 L-p = 18; R7 type 0 is not 1..8 -> throw UNKNOWN_TYPE at 13.
         //      (Frame size and checksum are fine; only the type is wrong.)
         // Expected: ERR UNKNOWN_TYPE@13
         c.add(TestCase.of("H10", "frame_type_zero_in_middle", "R7",
                 LogBuilder.wal().begin(1).record(0, Hex.bytes("00 00 00 01")).commit(1).build(),
                 "ERR UNKNOWN_TYPE@13"));
 
-        // H11 frame_type_eight_first_record
+        // H11 frame_type_nine_first_record
         // Rules: R7
-        // Derivation (re-derived for PROMPT.md v3, where types 6 and 7 are SAVEPOINT and ROLLBACK;
-        // v2 used type 6 here):
-        //   1. Header ok. Record @4: type 08, N = 4, payload 00 00 00 01, size 9, ends 13,
-        //      correct checksum (08 00 04 00 00 00 01; s1 8,8,12,12,12,12,13;
-        //      s2 8,16,28,40,52,64,77 -> 4D 0D). BEGIN 1 @13, size 9, ends 22 (1C 06). L = 22.
-        //   2. p = 4: R5 4 != 22; R6 L-p = 18; R7 type 8 is not 1, 2, 3, 4, 5, 6 or 7 (one above
-        //      ROLLBACK = 7) -> throw UNKNOWN_TYPE at 4.
+        // Derivation (re-derived for PROMPT.md v4, where type 8 is CHECKPOINT; v2 used type 6
+        // and v3 used type 8 here):
+        //   1. Header ok. Record @4: type 09, N = 4, payload 00 00 00 01, size 9, ends 13,
+        //      correct checksum (09 00 04 00 00 00 01; s1 9,9,13,13,13,13,14;
+        //      s2 9,18,31,44,57,70,84 -> 54 0E). BEGIN 1 @13, size 9, ends 22 (1C 06). L = 22.
+        //   2. p = 4: R5 4 != 22; R6 L-p = 18; R7 type 9 is not 1, 2, 3, 4, 5, 6, 7 or 8 (one
+        //      above CHECKPOINT = 8) -> throw UNKNOWN_TYPE at 4.
         // Expected: ERR UNKNOWN_TYPE@4
-        c.add(TestCase.of("H11", "frame_type_eight_first_record", "R7",
-                LogBuilder.wal().record(8, Hex.bytes("00 00 00 01")).begin(1).build(),
+        c.add(TestCase.of("H11", "frame_type_nine_first_record", "R7",
+                LogBuilder.wal().record(9, Hex.bytes("00 00 00 01")).begin(1).build(),
                 "ERR UNKNOWN_TYPE@4"));
 
         // H12 tail_payload_cut_short_is_torn
@@ -335,20 +336,21 @@ public final class HiddenTests {
 
         // H20 frame_last_record_unknown_type_bad_checksum_is_error
         // Rules: R7, R10
-        // Derivation (re-derived for PROMPT.md v3, where type 7 is ROLLBACK; v2 used type 7 here):
-        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). Record @13: type 08, N = 4, payload
+        // Derivation (re-derived for PROMPT.md v4, where type 8 is CHECKPOINT; v2 used type 7
+        // and v3 used type 8 here):
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). Record @13: type 09, N = 4, payload
         //      00 00 00 01, stored checksum 00 00 (written with frame()), size 9, ends 22. Its
-        //      correct checksum would be 4D 0D (08 00 04 00 00 00 01; s1 8,8,12,12,12,12,13;
-        //      s2 8,16,28,40,52,64,77), so the stored one is wrong. L = 22.
+        //      correct checksum would be 54 0E (09 00 04 00 00 00 01; s1 9,9,13,13,13,13,14;
+        //      s2 9,18,31,44,57,70,84), so the stored one is wrong. L = 22.
         //   2. p = 4: intact, p = 13.
-        //   3. p = 13: R5 13 != 22; R6 L-p = 9; R7 type 8 is not 1..7 -> throw UNKNOWN_TYPE at 13.
+        //   3. p = 13: R5 13 != 22; R6 L-p = 9; R7 type 9 is not 1..8 -> throw UNKNOWN_TYPE at 13.
         //      R7 comes before R10, so the torn tail that R10 would give (wrong checksum,
         //      13+5+4 = 22 = L) is never reached (section 7.2: "R7 and R8 apply to every record
         //      with at least 3 bytes left at p, including ... a last record whose checksum is
         //      wrong (R10)").
         // Expected: ERR UNKNOWN_TYPE@13
         c.add(TestCase.of("H20", "frame_last_record_unknown_type_bad_checksum_is_error", "R7,R10",
-                LogBuilder.wal().begin(1).frame(8, 4, Hex.bytes("00 00 00 01"), 0x0000).build(),
+                LogBuilder.wal().begin(1).frame(9, 4, Hex.bytes("00 00 00 01"), 0x0000).build(),
                 "ERR UNKNOWN_TYPE@13"));
 
         // =====================================================================================
@@ -1065,7 +1067,7 @@ public final class HiddenTests {
         //      (R15), txn 0 not open (R19). R13: 11 >= 5, k = 3, 11 >= 10, v = 1, 11 = 7+3+1
         //      ok. R14 txn 0 -> throw BAD_TXN_ID at 13.
         //   4. Deciding rule P4: "Within one record, the first failing check in the order R13,
-        //      R14, R15, R16, R16a, R17, R18, R19, R19a, R19b decides the code."
+        //      R14, R15, R16, R16a, R17, R18, R19, R19a, R19b, R19c decides the code."
         // Expected: ERR BAD_TXN_ID@13
         c.add(TestCase.of("H55", "prec_bad_txn_id_before_bad_key_same_record", "P4,R14,R15",
                 LogBuilder.wal().begin(1).put(0, "a b", "1").commit(1).build(),
@@ -1081,7 +1083,7 @@ public final class HiddenTests {
         //      which never had a BEGIN (R19). R13 9 = 7+1+1; R14 txn 2; R15 key byte E9 = 233
         //      > KEY_BYTE_MAX 7E = 126 -> throw BAD_KEY at 13.
         //   4. Deciding rule P4: "So the field checks (R13 to R16a) always come before the
-        //      transaction checks (R17 to R19b)."
+        //      transaction checks (R17 to R19c)."
         // Expected: ERR BAD_KEY@13
         c.add(TestCase.of("H56", "prec_bad_key_before_txn_not_open", "P4,R15,R19",
                 LogBuilder.wal().begin(1).put(2, "\u00E9", "1").commit(1).build(),
@@ -1318,8 +1320,8 @@ public final class HiddenTests {
         //      problems: txn 0 (R14) and 4 = MAX_OPEN_TXNS transactions open (R18).
         //      R13 N = 4 ok; R14 txn = 0 -> throw BAD_TXN_ID at 40.
         //   4. Deciding rule P4: "Within one record, the first failing check in the order R13,
-        //      R14, R15, R16, R16a, R17, R18, R19, R19a, R19b decides the code. So the field
-        //      checks (R13 to R16a) always come before the transaction checks (R17 to R19b)."
+        //      R14, R15, R16, R16a, R17, R18, R19, R19a, R19b, R19c decides the code. So the field
+        //      checks (R13 to R16a) always come before the transaction checks (R17 to R19c)."
         // Expected: ERR BAD_TXN_ID@40
         c.add(TestCase.of("H68", "prec_bad_txn_id_before_too_many_open", "P4,R14,R18",
                 LogBuilder.wal().begin(1).begin(2).begin(3).begin(4).begin(0).build(),
@@ -1336,7 +1338,7 @@ public final class HiddenTests {
         //      which never had a BEGIN (R19). R13 9 = 7+1+1 ok; R14 txn 9 != 0; R15 key 61 ok;
         //      R16 value byte 0A < VALUE_BYTE_MIN 20 -> throw BAD_VALUE at 13.
         //   4. Deciding rule P4: "So the field checks (R13 to R16a) always come before the
-        //      transaction checks (R17 to R19b)."
+        //      transaction checks (R17 to R19c)."
         // Expected: ERR BAD_VALUE@13
         c.add(TestCase.of("H69", "prec_bad_value_before_txn_not_open", "P4,R16,R19",
                 LogBuilder.wal().begin(1).put(9, "a", "\n").commit(1).build(),
@@ -1652,7 +1654,7 @@ public final class HiddenTests {
         //   2. Phase 1: all 11 intact; p = 154 = L (R5).
         //   3. Phase 2: BEGIN 1 opens; the 8 PUTs -> list1 has 8 writes (R19a 0..7 before each).
         //      SAVEPOINT @125: R13 N = 5; R14; R16a 78 ok; R19 open. R19a applies only to PUT
-        //      and DELETE ("SAVEPOINT and ROLLBACK records are not writes and never count") ->
+        //      and DELETE ("SAVEPOINT, ROLLBACK and CHECKPOINT records are not writes and never count") ->
         //      R23a: sp1 {x: 8 @125}.
         //      ROLLBACK @135: R19b x exists -> R23b keeps the first 8 writes (removes none,
         //      Not errors item 13); no savepoint set after 125; list1 still 8 writes.
@@ -1676,7 +1678,7 @@ public final class HiddenTests {
         //      R13 9 = 7+1+1 ok; R14 txn 1; R15 key 69 ok; R16 value byte 7F > VALUE_BYTE_MAX
         //      7E -> throw BAD_VALUE at 125.
         //   4. Deciding rule P4: "So the field checks (R13 to R16a) always come before the
-        //      transaction checks (R17 to R19b)."
+        //      transaction checks (R17 to R19c)."
         // Expected: ERR BAD_VALUE@125
         c.add(TestCase.of("H76", "prec_bad_value_before_txn_too_large", "P4,R16,R19a",
                 LogBuilder.wal().begin(1).put(1, "a", "1").put(1, "b", "2").put(1, "c", "3")
@@ -1737,7 +1739,7 @@ public final class HiddenTests {
         //   3. Phase 2: BEGIN 1 opens. SAVEPOINT @13 has two problems: N = 6 (R13) and name
         //      byte 20 (payload byte 4, R16a). R13: N = 6 != 5 -> throw MALFORMED_PAYLOAD at 13.
         //   4. Deciding rule P4: "Within one record, the first failing check in the order R13,
-        //      R14, R15, R16, R16a, R17, R18, R19, R19a, R19b decides the code."
+        //      R14, R15, R16, R16a, R17, R18, R19, R19a, R19b, R19c decides the code."
         // Expected: ERR MALFORMED_PAYLOAD@13
         c.add(TestCase.of("H79", "prec_malformed_before_bad_name_savepoint_n6", "P4,R13,R16a",
                 LogBuilder.wal().begin(1).record(6, Hex.bytes("00 00 00 01 20 73")).commit(1).build(),
@@ -1798,7 +1800,7 @@ public final class HiddenTests {
         //      problems: name byte 7F (R16a) and no savepoint named 7F (R19b). R13 N = 5; R14
         //      txn 1; R16a 7F > NAME_BYTE_MAX 7E -> throw BAD_NAME at 23.
         //   4. Deciding rule P4: "So the field checks (R13 to R16a) always come before the
-        //      transaction checks (R17 to R19b)."
+        //      transaction checks (R17 to R19c)."
         // Expected: ERR BAD_NAME@23
         c.add(TestCase.of("H83", "rb_name_0x7f_is_bad_name_before_no_savepoint", "P4,R16a,R19b",
                 LogBuilder.wal().begin(1).savepoint(1, 0x73).rollback(1, 0x7F).commit(1).build(),
@@ -1836,7 +1838,7 @@ public final class HiddenTests {
         //      problems: txn 0 (R14), name byte 20 (R16a), txn 0 not open (R19). R13 N = 5 ok;
         //      R14 txn = 0 -> throw BAD_TXN_ID at 23.
         //   4. Deciding rule P4: "Within one record, the first failing check in the order R13,
-        //      R14, R15, R16, R16a, R17, R18, R19, R19a, R19b decides the code."
+        //      R14, R15, R16, R16a, R17, R18, R19, R19a, R19b, R19c decides the code."
         // Expected: ERR BAD_TXN_ID@23
         c.add(TestCase.of("H85", "prec_bad_txn_id_before_bad_name", "P4,R14,R16a",
                 LogBuilder.wal().begin(1).savepoint(1, 0x73).rollback(0, 0x20).commit(1).build(),
@@ -2095,7 +2097,7 @@ public final class HiddenTests {
         //   3. Phase 2: [a=1]; sp1 {s: 1 @27}; [a=1, b=2]; ROLLBACK -> [a=1]; [a=1, c=3].
         //      ABORT 1: R19 open -> the writes are discarded without being applied; aborted [1];
         //      savepoints discarded (R23).
-        //   4. State {}; "SAVEPOINT and ROLLBACK records add nothing to these lists" (R25), so
+        //   4. State {}; "SAVEPOINT, ROLLBACK and CHECKPOINT records add nothing to these lists" (R25), so
         //      committed [] and aborted [1].
         // Expected: OK state={} committed=[] aborted=[1] incomplete=[] validLength=84 tornTail=false
         c.add(TestCase.of("H97", "rb_then_abort_applies_nothing", "R23,R23b,R25",
@@ -2171,7 +2173,7 @@ public final class HiddenTests {
         //      R13 N = 8 >= 5, k = 3, 8 = 5+3 ok; R14 txn 1; R15 k = 3 is in 1..32, but key byte
         //      20 < KEY_BYTE_MIN 21 -> throw BAD_KEY at 125.
         //   4. Deciding rule P4: "So the field checks (R13 to R16a) always come before the
-        //      transaction checks (R17 to R19b)." (Checking R19a first would give
+        //      transaction checks (R17 to R19c)." (Checking R19a first would give
         //      TXN_TOO_LARGE@125.)
         // Expected: ERR BAD_KEY@125
         c.add(TestCase.of("H100", "prec_bad_key_before_txn_too_large", "P4,R15,R19a",
@@ -2197,6 +2199,411 @@ public final class HiddenTests {
         c.add(TestCase.of("H101", "rb_without_any_savepoint_is_no_savepoint", "R19b,R20",
                 LogBuilder.wal().begin(1).put(1, "a", "1").rollback(1, 0x73).commit(1).build(),
                 "ERR NO_SAVEPOINT@27"));
+        // =====================================================================================
+        // Group M: L3 CHECKPOINT (PROMPT.md v4: type 8, R13, R14, R19c, R23c, P2, P4, P5,
+        // section 10 items 16-17). Traps T27-T34 in work/notes/coverage.md.
+        // New records (covered bytes; s1 and s2 traces; stored s2 s1). Arithmetic from
+        // work/scratch/p8l3/layout.py (encode only); the checkpoint traces were re-added by hand.
+        //   CP []            08 00 01 00                     s1 8,8,9,9  s2 8,16,25,34 -> 22 09
+        //   CP [1]           08 00 05 01 00 00 00 01         s1 8,8,13,14,14,14,14,15
+        //                                                    s2 8,16,29,43,57,71,85,100 -> 64 0F
+        //   CP [5]           08 00 05 01 00 00 00 05         s1 8,8,13,14,14,14,14,19
+        //                                                    s2 8,16,29,43,57,71,85,104 -> 68 13
+        //   CP [9]           08 00 05 01 00 00 00 09         s1 8,8,13,14,14,14,14,23
+        //                                                    s2 8,16,29,43,57,71,85,108 -> 6C 17
+        //   CP [3, 5]        08 00 09 02 00 00 00 03 00 00 00 05  s1 8,8,17,19,19,19,19,22,22,22,22,27
+        //                                                    s2 8,16,33,52,71,90,109,131,153,175,197,224 -> E0 1B
+        //   CP [5, 3]        08 00 09 02 00 00 00 05 00 00 00 03  s1 8,8,17,19,19,19,19,24,24,24,24,27
+        //                                                    s2 8,16,33,52,71,90,109,133,157,181,205,232 -> E8 1B
+        //   CP [1, 2]        (Example 5) -> D3 16
+        //   CP [1, 1]        08 00 09 02 00 00 00 01 00 00 00 01  s1 8,8,17,19,19,19,19,20,20,20,20,21
+        //                                                    s2 8,16,33,52,71,90,109,129,149,169,189,210 -> D2 15
+        //   CP [0, 1]        08 00 09 02 00 00 00 00 00 00 00 01  s1 8,8,17,19,19,19,19,19,19,19,19,20
+        //                                                    s2 8,16,33,52,71,90,109,128,147,166,185,205 -> CD 14
+        //   CP [7, 2^31, 2^32-1]  08 00 0D 03 00 00 00 07 80 00 00 00 FF FF FF FF
+        //                    s1 8,8,21,24,24,24,24,31,159,159,159,159,159,159,159,159
+        //                    s2 8,16,37,61,85,109,133,164,68,227,131,35,194,98,2,161 -> A1 9F
+        //   CP [2^31, 2^32-1, 7]  08 00 0D 03 80 00 00 00 FF FF FF FF 00 00 00 07
+        //                    s1 8,8,21,24,152,152,152,152,152,152,152,152,152,152,152,159
+        //                    s2 8,16,37,61,213,110,7,159,56,208,105,2,154,51,203,107 -> 6B 9F
+        //   type 8, N = 0    08 00 00                        s1 8,8,8  s2 8,16,24 -> 18 08
+        //   type 8, N = 5, payload 02 00 00 00 00            s1 8,8,13,15,15,15,15,15
+        //                                                    s2 8,16,29,44,59,74,89,104 -> 68 0F
+        //   BEGIN 5   01 00 04 00 00 00 05  s1 1,1,5,5,5,5,10   s2 1,2,7,12,17,22,32 -> 20 0A
+        //   BEGIN 7   01 00 04 00 00 00 07  s1 1,1,5,5,5,5,12   s2 1,2,7,12,17,22,34 -> 22 0C
+        //   BEGIN 9   01 00 04 00 00 00 09  s1 1,1,5,5,5,5,14   s2 1,2,7,12,17,22,36 -> 24 0E
+        //   BEGIN 2^31  01 00 04 80 00 00 00  s1 1,1,5,133,133,133,133  s2 1,2,7,140,18,151,29 -> 1D 85
+        //   BEGIN 2^32-1  -> 1B 05 (HarnessCheck literal u32_max_txn)
+        //   COMMIT 3  04 00 04 00 00 00 03  s1 4,4,8,8,8,8,11   s2 4,8,16,24,32,40,51 -> 33 0B
+        //   COMMIT 7  04 00 04 00 00 00 07  s1 4,4,8,8,8,8,15   s2 4,8,16,24,32,40,55 -> 37 0F
+        //   COMMIT 9  04 00 04 00 00 00 09  s1 4,4,8,8,8,8,17   s2 4,8,16,24,32,40,57 -> 39 11
+        //   ABORT 2   05 00 04 00 00 00 02  s1 5,5,9,9,9,9,11   s2 5,10,19,28,37,46,57 -> 39 0B
+        //   PUT 3 c=3 02 00 09 00 00 00 03 01 63 00 01 33  s1 2,2,11,11,11,11,14,15,114,114,115,166
+        //                                   s2 2,4,15,26,37,48,62,77,191,50,165,76 -> 4C A6
+        // (2^31 = 2147483648 = bytes 80 00 00 00; 2^32-1 = 4294967295 = FF FF FF FF.)
+        // =====================================================================================
+
+        // H102 cp_empty_list_first_record_nothing_open
+        // Rules: R13, R19c, R23c, section 10 item 16
+        // Derivation:
+        //   1. Header ok. CP [] @4: type 08, N = 1, payload 00 (c = 0), size 6, ends 10 (22 09).
+        //      BEGIN 1 @10, ends 19 (1C 06). PUT 1 a=1 @19, ends 33 (36 A0). COMMIT 1 @33, ends
+        //      42 (31 09). L = 42.
+        //   2. Phase 1: p = 4: R7 type 8 is valid; R8 N = 1; R9 10 <= 42; R10 correct -> intact.
+        //      p = 10, 19, 33 intact; p = 42 = L (R5): validLength = 42, tornTail = false.
+        //   3. Phase 2: CP @4: R13 N = 1 >= 1, c = 0, N = 1 + 4*0 = 1 ok; R14 no listed ids;
+        //      R19c m = 0 (nothing open yet), c = 0 = m, nothing to compare -> right; R23c no
+        //      change. BEGIN 1 opens; PUT -> [a=1]; COMMIT applies a=1 (R22).
+        // Expected: OK state={"a"="1"} committed=[1] aborted=[] incomplete=[] validLength=42 tornTail=false
+        c.add(TestCase.of("H102", "cp_empty_list_first_record_nothing_open", "R13,R19c,R23c",
+                LogBuilder.wal().checkpoint().begin(1).put(1, "a", "1").commit(1).build(),
+                "OK state={\"a\"=\"1\"} committed=[1] aborted=[] incomplete=[] validLength=42 tornTail=false"));
+
+        // H103 cp_ascending_list_differs_from_begin_order
+        // Rules: R19c, R26
+        // Derivation:
+        //   1. Header ok. BEGIN 5 @4, ends 13 (20 0A). BEGIN 3 @13, ends 22 (1E 08).
+        //      CP [3, 5] @22: N = 9, size 14, ends 36 (E0 1B). L = 36.
+        //   2. Phase 1: all 3 intact (types 1, 1, 8); p = 36 = L (R5).
+        //   3. Phase 2: BEGIN 5, BEGIN 3 open (R18: 0 and 1 open before). CP @22: R13 N = 9 >= 1,
+        //      c = 2, 9 = 1 + 4*2; R14 ids 3, 5 are not 0; R19c open {5, 3}, m = 2, ascending
+        //      o_1 = 3, o_2 = 5; listed 3, 5 -> right. R23c no change.
+        //   4. End: open 5 and 3 -> incomplete [3, 5] (R26, ascending).
+        // Expected: OK state={} committed=[] aborted=[] incomplete=[3, 5] validLength=36 tornTail=false
+        c.add(TestCase.of("H103", "cp_ascending_list_differs_from_begin_order", "R19c,R26",
+                LogBuilder.wal().begin(5).begin(3).checkpoint(3, 5).build(),
+                "OK state={} committed=[] aborted=[] incomplete=[3, 5] validLength=36 tornTail=false"));
+
+        // H104 cp_list_in_begin_order_is_mismatch
+        // Rules: R19c
+        // Derivation:
+        //   1. Header ok. BEGIN 5 @4, ends 13 (20 0A). BEGIN 3 @13, ends 22 (1E 08).
+        //      CP [5, 3] @22: N = 9, size 14, ends 36 (E8 1B). L = 36.
+        //   2. Phase 1: all 3 intact; p = 36 = L (R5).
+        //   3. Phase 2: BEGIN 5, BEGIN 3 open. CP @22: R13 9 = 1 + 4*2; R14 ids 5, 3 not 0;
+        //      R19c m = 2 = c, o_1 = 3, but listed id 1 is 5 != 3 -> throw CHECKPOINT_MISMATCH at
+        //      22 (R19c names "a list in another order" as wrong). The set {5, 3} is right; only the
+        //      order is wrong (it is the BEGIN order, not ascending).
+        // Expected: ERR CHECKPOINT_MISMATCH@22
+        c.add(TestCase.of("H104", "cp_list_in_begin_order_is_mismatch", "R19c",
+                LogBuilder.wal().begin(5).begin(3).checkpoint(5, 3).build(),
+                "ERR CHECKPOINT_MISMATCH@22"));
+
+        // H105 cp_unsigned_ascending_order_large_ids
+        // Rules: R19c, R26, R22
+        // Derivation:
+        //   1. Header ok. BEGIN 4294967295 @4, ends 13 (1B 05). BEGIN 2147483648 @13, ends 22
+        //      (1D 85). BEGIN 7 @22, ends 31 (22 0C). CP [7, 2147483648, 4294967295] @31: N = 13
+        //      (00 0D), c = 3, size 18, ends 49 (A1 9F). COMMIT 7 @49, ends 58 (37 0F). L = 58.
+        //   2. Phase 1: all 5 intact (types 1, 1, 1, 8, 4; N 4 or 13); p = 58 = L (R5).
+        //   3. Phase 2: the 3 BEGINs open (0, 1, 2 open before each; ids are distinct and not 0).
+        //      CP @31: R13 13 = 1 + 4*3; R14 none is 0; R19c open {4294967295, 2147483648, 7},
+        //      m = 3, ascending numeric order of the u32 values: 7 < 2147483648 < 4294967295;
+        //      listed 7, 2147483648, 4294967295 -> right. COMMIT 7 -> committed [7], no writes.
+        //   4. End: open 4294967295 and 2147483648 -> incomplete [2147483648, 4294967295].
+        //   (Comparing ids as signed 32-bit ints would put 80 00 00 00 and FF FF FF FF before 7
+        //   and wrongly throw CHECKPOINT_MISMATCH@31.)
+        // Expected: OK state={} committed=[7] aborted=[] incomplete=[2147483648, 4294967295] validLength=58 tornTail=false
+        c.add(TestCase.of("H105", "cp_unsigned_ascending_order_large_ids", "R19c,R22,R26",
+                LogBuilder.wal().begin(4294967295L).begin(2147483648L).begin(7)
+                        .checkpoint(7, 2147483648L, 4294967295L).commit(7).build(),
+                "OK state={} committed=[7] aborted=[] incomplete=[2147483648, 4294967295] validLength=58 tornTail=false"));
+
+        // H106 cp_signed_order_is_mismatch
+        // Rules: R19c
+        // Derivation:
+        //   1. As H105, but CP [2147483648, 4294967295, 7] @31: N = 13, size 18, ends 49 (6B 9F).
+        //      COMMIT 7 @49, ends 58 (37 0F). L = 58.
+        //   2. Phase 1: all 5 intact; p = 58 = L (R5).
+        //   3. Phase 2: 3 BEGINs open. CP @31: R13 13 = 1 + 4*3; R14 none 0; R19c m = 3 = c;
+        //      o_1 = 7 (smallest u32 value), listed id 1 = 2147483648 != 7 -> throw
+        //      CHECKPOINT_MISMATCH at 31. (This list is the order of the ids read as signed ints.)
+        // Expected: ERR CHECKPOINT_MISMATCH@31
+        c.add(TestCase.of("H106", "cp_signed_order_is_mismatch", "R19c",
+                LogBuilder.wal().begin(4294967295L).begin(2147483648L).begin(7)
+                        .checkpoint(2147483648L, 4294967295L, 7).commit(7).build(),
+                "ERR CHECKPOINT_MISMATCH@31"));
+
+        // H107 cp_lists_committed_txn_is_mismatch
+        // Rules: R19c, R22
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4 (1C 06), BEGIN 2 @13 (1D 07), COMMIT 1 @22, ends 31 (31 09).
+        //      CP [1, 2] @31, N = 9, ends 45 (D3 16). L = 45.
+        //   2. Phase 1: all 4 intact; p = 45 = L (R5).
+        //   3. Phase 2: 1 and 2 open; COMMIT 1 -> txn 1 is no longer open (R22). CP @31: R13, R14
+        //      ok; R19c open {2}, m = 1, c = 2 != 1 -> throw CHECKPOINT_MISMATCH at 31 ("a list
+        //      with an id that is not open (... already committed ...)").
+        // Expected: ERR CHECKPOINT_MISMATCH@31
+        c.add(TestCase.of("H107", "cp_lists_committed_txn_is_mismatch", "R19c,R22",
+                LogBuilder.wal().begin(1).begin(2).commit(1).checkpoint(1, 2).build(),
+                "ERR CHECKPOINT_MISMATCH@31"));
+
+        // H108 cp_leaves_out_open_txn_is_mismatch
+        // Rules: R19c
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4 (1C 06), BEGIN 2 @13, ends 22 (1D 07). CP [1] @22: N = 5,
+        //      size 10, ends 32 (64 0F). L = 32.
+        //   2. Phase 1: all 3 intact; p = 32 = L (R5).
+        //   3. Phase 2: 1 and 2 open. CP @22: R13 5 = 1 + 4*1; R14 id 1; R19c m = 2, c = 1 != 2
+        //      -> throw CHECKPOINT_MISMATCH at 22 ("a list that leaves out an open id").
+        // Expected: ERR CHECKPOINT_MISMATCH@22
+        c.add(TestCase.of("H108", "cp_leaves_out_open_txn_is_mismatch", "R19c",
+                LogBuilder.wal().begin(1).begin(2).checkpoint(1).build(),
+                "ERR CHECKPOINT_MISMATCH@22"));
+
+        // H109 cp_repeated_id_is_mismatch
+        // Rules: R19c
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). CP [1, 1] @13: N = 9, size 14, ends 27
+        //      (D2 15). L = 27.
+        //   2. Phase 1: both intact; p = 27 = L (R5).
+        //   3. Phase 2: txn 1 opens. CP @13: R13 9 = 1 + 4*2; R14 ids 1, 1 not 0; R19c open {1},
+        //      m = 1, c = 2 != 1 -> throw CHECKPOINT_MISMATCH at 13 ("a list with a repeated
+        //      id"). (Comparing as a set would accept it.)
+        // Expected: ERR CHECKPOINT_MISMATCH@13
+        c.add(TestCase.of("H109", "cp_repeated_id_is_mismatch", "R19c",
+                LogBuilder.wal().begin(1).checkpoint(1, 1).build(),
+                "ERR CHECKPOINT_MISMATCH@13"));
+
+        // H110 cp_lists_txn_that_begins_later_is_mismatch_not_txn_not_open
+        // Rules: R19c, R19, section 10 item 17
+        // Derivation:
+        //   1. Header ok. CP [9] @4: N = 5, size 10, ends 14 (6C 17). BEGIN 9 @14, ends 23
+        //      (24 0E). COMMIT 9 @23, ends 32 (39 11). L = 32.
+        //   2. Phase 1: all 3 intact; p = 32 = L (R5).
+        //   3. Phase 2: CP @4: R13 5 = 1 + 4*1; R14 id 9 not 0; R19 does not apply to CHECKPOINT
+        //      ("R19 does not apply to CHECKPOINT records"); R19c nothing is open yet, m = 0,
+        //      c = 1 != 0 -> throw CHECKPOINT_MISMATCH at 4. "Only the open transactions at the
+        //      CHECKPOINT record count" (section 10 item 17, last sentence); the BEGIN 9 comes later.
+        // Expected: ERR CHECKPOINT_MISMATCH@4
+        c.add(TestCase.of("H110", "cp_lists_txn_that_begins_later_is_mismatch_not_txn_not_open", "R19,R19c",
+                LogBuilder.wal().checkpoint(9).begin(9).commit(9).build(),
+                "ERR CHECKPOINT_MISMATCH@4"));
+
+        // H111 prec_cp_listed_zero_bad_txn_id_before_mismatch
+        // Rules: P4, R14, R19c
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). CP [0, 1] @13: N = 9, size 14, ends 27
+        //      (CD 14). L = 27.
+        //   2. Phase 1: both intact; p = 27 = L (R5).
+        //   3. Phase 2: txn 1 opens. CP @13 has two problems: a listed id 0 (R14) and a wrong
+        //      list (R19c: m = 1, c = 2). R13 9 = 1 + 4*2 ok; R14 "For CHECKPOINT: if any of the
+        //      c listed ids is 0, throw BAD_TXN_ID at p" -> throw BAD_TXN_ID at 13.
+        //   4. Deciding rule P4: "For a CHECKPOINT record, MALFORMED_PAYLOAD (R13) comes before
+        //      BAD_TXN_ID (R14), and BAD_TXN_ID (R14) comes before CHECKPOINT_MISMATCH (R19c)."
+        // Expected: ERR BAD_TXN_ID@13
+        c.add(TestCase.of("H111", "prec_cp_listed_zero_bad_txn_id_before_mismatch", "P4,R14,R19c",
+                LogBuilder.wal().begin(1).checkpoint(0, 1).build(),
+                "ERR BAD_TXN_ID@13"));
+
+        // H112 cp_payload_length_zero_is_malformed
+        // Rules: R13
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). Record @13: type 08, N = 0, no payload,
+        //      size 5, ends 18, correct checksum 18 08. COMMIT 1 @18, ends 27 (31 09). L = 27.
+        //   2. Phase 1: p = 13: R6 L-p = 14; R7 type 8; R8 N = 0; R9 18 <= 27; R10 correct ->
+        //      intact (the layout is not a phase-1 check). p = 18 intact; p = 27 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens. Record @13: R13 CHECKPOINT "N >= 1" fails (N = 0; there
+        //      is no payload byte 0 to read c from) -> throw MALFORMED_PAYLOAD at 13.
+        // Expected: ERR MALFORMED_PAYLOAD@13
+        c.add(TestCase.of("H112", "cp_payload_length_zero_is_malformed", "R13",
+                LogBuilder.wal().begin(1).record(8, new byte[0]).commit(1).build(),
+                "ERR MALFORMED_PAYLOAD@13"));
+
+        // H113 prec_cp_count_not_matching_length_malformed_before_bad_txn_id
+        // Rules: P4, R13, R14
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). Record @13: type 08, N = 5, payload
+        //      02 00 00 00 00 (c = 2, then 4 bytes 00 00 00 00), size 10, ends 23, correct
+        //      checksum 68 0F. COMMIT 1 @23, ends 32 (31 09). L = 32.
+        //   2. Phase 1: all 3 intact (R7 type 8, R8 N = 5, fits, checksums correct); p = 32 = L.
+        //   3. Phase 2: BEGIN 1 opens. Record @13: R13 N = 5 >= 1; c = payload byte 0 = 2;
+        //      1 + 4*2 = 9 != N = 5 -> throw MALFORMED_PAYLOAD at 13. (Reading the bytes after
+        //      c as ids would find the id 0 -> BAD_TXN_ID (R14), or a wrong list (R19c).)
+        //   4. Deciding rule P4: "For a CHECKPOINT record, MALFORMED_PAYLOAD (R13) comes before
+        //      BAD_TXN_ID (R14)".
+        // Expected: ERR MALFORMED_PAYLOAD@13
+        c.add(TestCase.of("H113", "prec_cp_count_not_matching_length_malformed_before_bad_txn_id", "P4,R13,R14",
+                LogBuilder.wal().begin(1).record(8, Hex.bytes("02 00 00 00 00")).commit(1).build(),
+                "ERR MALFORMED_PAYLOAD@13"));
+
+        // H114 cp_wrong_list_in_torn_tail_is_ignored
+        // Rules: R10, R12, P5
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4 (1C 06), PUT 1 a=1 @13, ends 27 (36 A0), COMMIT 1 @27, ends
+        //      36 (31 09). CP [5] @36: N = 5, size 10, ends 46; correct checksum 68 13, stored
+        //      69 12 (corruptLastChecksum). L = 46.
+        //   2. Phase 1: p = 4, 13, 27 intact. p = 36: R6 L-p = 10; R7 type 8; R8 N = 5; R9 46 <=
+        //      46; R10 stored 69 12 != 68 13 and 36+5+5 = 46 = L -> torn tail at 36 (R12):
+        //      validLength = 36, tornTail = true.
+        //   3. Phase 2: txn 1 writes a=1 and commits. The CP @36 would fail R19c (txn 5 never
+        //      opened), but it is in the torn tail and is never checked (P5).
+        // Expected: OK state={"a"="1"} committed=[1] aborted=[] incomplete=[] validLength=36 tornTail=true
+        c.add(TestCase.of("H114", "cp_wrong_list_in_torn_tail_is_ignored", "P5,R10,R12",
+                LogBuilder.wal().begin(1).put(1, "a", "1").commit(1).checkpoint(5).corruptLastChecksum().build(),
+                "OK state={\"a\"=\"1\"} committed=[1] aborted=[] incomplete=[] validLength=36 tornTail=true"));
+
+        // H115 prec_cp_mismatch_early_checksum_mismatch_later
+        // Rules: P2, R10, R19c
+        // Derivation:
+        //   1. Header ok. CP [9] @4, ends 14 (6C 17). BEGIN 1 @14, ends 23 (1C 06). PUT 1 a=1
+        //      @23, N = 9, ends 37: correct checksum 36 A0, stored 37 A1 (corruptLastChecksum).
+        //      COMMIT 1 @37, ends 46 (31 09). L = 46.
+        //   2. Two problems: the CP @4 lists 9 while nothing is open (R19c, phase 2), and the PUT
+        //      @23 has a wrong checksum with bytes after it (R10, phase 1).
+        //   3. Phase 1: p = 4: R7 type 8 valid; R8 N = 5; R9 14 <= 46; R10 correct -> intact.
+        //      p = 14 intact. p = 23: R7 type 2; R8 N = 9; R9 37 <= 46; R10 stored 37 A1 !=
+        //      36 A0 and 37 < 46 -> throw CHECKSUM_MISMATCH at 23. Phase 2 never runs.
+        //   4. Deciding rule P2: "A phase-1 error anywhere in the log beats a phase-2 error
+        //      anywhere in the log, even when the phase-2 problem is in an earlier record."
+        //      CHECKPOINT_MISMATCH is listed there as a phase-2 error.
+        // Expected: ERR CHECKSUM_MISMATCH@23
+        c.add(TestCase.of("H115", "prec_cp_mismatch_early_checksum_mismatch_later", "P2,R10,R19c",
+                LogBuilder.wal().checkpoint(9).begin(1).put(1, "a", "1").corruptLastChecksum().commit(1).build(),
+                "ERR CHECKSUM_MISMATCH@23"));
+
+        // H116 cp_open_set_excludes_aborted_and_closed_txns
+        // Rules: R19c, R22, R23, R25, section 10 item 17
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4 (1C 06), BEGIN 2 @13 (1D 07), ABORT 2 @22, ends 31 (39 0B),
+        //      CP [1] @31, ends 41 (64 0F), BEGIN 3 @41, ends 50 (1E 08), PUT 3 c=3 @50, ends 64
+        //      (4C A6), COMMIT 3 @64, ends 73 (33 0B), CP [1] @73, ends 83 (64 0F), COMMIT 1 @83,
+        //      ends 92 (31 09). L = 92.
+        //   2. Phase 1: all 9 intact; p = 92 = L (R5).
+        //   3. Phase 2: 1, 2 open; ABORT 2 -> aborted [2], 2 not open (R23). CP @31: R13 5 =
+        //      1 + 4; R14 id 1; R19c open {1}, m = 1 = c, o_1 = 1 = listed -> right (txn 3 is not
+        //      open yet). BEGIN 3 (1 open before) opens; PUT -> [c=3]; COMMIT 3 applies c=3,
+        //      committed [3], 3 not open. CP @73: open {1}, list [1] -> right. COMMIT 1 (no
+        //      writes) -> committed [3, 1].
+        //   4. End: nothing open -> incomplete []. state {c=3}.
+        // Expected: OK state={"c"="3"} committed=[3, 1] aborted=[2] incomplete=[] validLength=92 tornTail=false
+        c.add(TestCase.of("H116", "cp_open_set_excludes_aborted_and_closed_txns", "R19c,R22,R23,R25",
+                LogBuilder.wal().begin(1).begin(2).abort(2).checkpoint(1).begin(3).put(3, "c", "3")
+                        .commit(3).checkpoint(1).commit(1).build(),
+                "OK state={\"c\"=\"3\"} committed=[3, 1] aborted=[2] incomplete=[] validLength=92 tornTail=false"));
+
+        // H117 cp_between_savepoint_and_rollback_changes_nothing
+        // Rules: R23c, R23a, R23b, R22
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4 (1C 06), PUT 1 a=1 @13, ends 27 (36 A0), SAVEPOINT 1 s
+        //      (73) @27, ends 37 (C3 7F), PUT 1 b=2 @37, ends 51 (3B A2), CP [1] @51, ends 61
+        //      (64 0F), ROLLBACK 1 s @61, ends 71 (CB 80), COMMIT 1 @71, ends 80 (31 09). L = 80.
+        //   2. Phase 1: all 7 intact (types 1, 2, 6, 2, 8, 7, 4); p = 80 = L (R5).
+        //   3. Phase 2: BEGIN 1; PUT -> [a=1]; SAVEPOINT s -> position 1 (R23a); PUT -> [a=1,
+        //      b=2]. CP @51: open {1}, list [1] -> right; R23c "no write list, savepoint or state
+        //      changes" (and a CHECKPOINT is not a write). ROLLBACK s: R19b s exists; keep the
+        //      first 1 write -> [a=1] (R23b). COMMIT applies a=1.
+        // Expected: OK state={"a"="1"} committed=[1] aborted=[] incomplete=[] validLength=80 tornTail=false
+        c.add(TestCase.of("H117", "cp_between_savepoint_and_rollback_changes_nothing", "R22,R23a,R23b,R23c",
+                LogBuilder.wal().begin(1).put(1, "a", "1").savepoint(1, 0x73).put(1, "b", "2")
+                        .checkpoint(1).rollback(1, 0x73).commit(1).build(),
+                "OK state={\"a\"=\"1\"} committed=[1] aborted=[] incomplete=[] validLength=80 tornTail=false"));
+
+        // H118 frame_type_eight_too_large
+        // Rules: R7, R8
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). Then bytes 08 04 01 00 00 @13 (written
+        //      with frame(8, 1025, no payload, checksum 00 00)). L = 18.
+        //   2. p = 4: intact, p = 13.
+        //   3. p = 13: R5 13 != 18; R6 L-p = 5; R7 type 8 is valid (CHECKPOINT); R8 N = 04 01 =
+        //      4*256 + 1 = 1025 > MAX_PAYLOAD 1024 -> throw RECORD_TOO_LARGE at 13. (R8 comes
+        //      before R9, so the missing payload does not matter.)
+        // Expected: ERR RECORD_TOO_LARGE@13
+        c.add(TestCase.of("H118", "frame_type_eight_too_large", "R7,R8",
+                LogBuilder.wal().begin(1).frame(8, 1025, new byte[0], 0x0000).build(),
+                "ERR RECORD_TOO_LARGE@13"));
+
+        // H119 cp_ascending_right_count_but_committed_id_is_mismatch
+        // Rules: R19c, R22
+        // (Added from the v4 audit, work/notes/test-audit-v4.md: count and order right, one id
+        // not open.)
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4 (1C 06), BEGIN 2 @13 (1D 07), COMMIT 1 @22, ends 31 (31 09),
+        //      BEGIN 3 @31, ends 40 (1E 08). CP [1, 3] @40: N = 9, size 14, ends 54
+        //      (08 00 09 02 00 00 00 01 00 00 00 03; s1 8,8,17,19,19,19,19,20,20,20,20,23;
+        //      s2 8,16,33,52,71,90,109,129,149,169,189,212 -> D4 17). L = 54.
+        //   2. Phase 1: all 5 intact; p = 54 = L (R5).
+        //   3. Phase 2: 1, 2 open; COMMIT 1 closes 1 (R22); BEGIN 3 opens. CP @40: R13 9 = 1+4*2;
+        //      R14 ids 1, 3 not 0; R19c open {2, 3}, m = 2 = c, o_1 = 2, listed id 1 is 1 != 2
+        //      -> throw CHECKPOINT_MISMATCH at 40. (The list is ascending and has the right
+        //      length; checking only those two would accept it.)
+        // Expected: ERR CHECKPOINT_MISMATCH@40
+        c.add(TestCase.of("H119", "cp_ascending_right_count_but_committed_id_is_mismatch", "R19c,R22",
+                LogBuilder.wal().begin(1).begin(2).commit(1).begin(3).checkpoint(1, 3).build(),
+                "ERR CHECKPOINT_MISMATCH@40"));
+
+        // H120 cp_payload_longer_than_count_is_malformed
+        // Rules: R13
+        // (Added from the v4 audit: N greater than 1 + 4c.)
+        // Derivation:
+        //   1. Header ok. Record @4: type 08, N = 5, payload 00 00 00 00 01 (c = 0, then 4 more
+        //      bytes), size 10, ends 14, correct checksum (08 00 05 00 00 00 00 01;
+        //      s1 8,8,13,13,13,13,13,14; s2 8,16,29,42,55,68,81,95 -> 5F 0E). BEGIN 1 @14, ends
+        //      23 (1C 06). COMMIT 1 @23, ends 32 (31 09). L = 32.
+        //   2. Phase 1: all 3 intact; p = 32 = L (R5).
+        //   3. Phase 2: record @4: R13 N = 5 >= 1; c = 0; N = 1 + 4*0 = 1? 5 != 1 -> throw
+        //      MALFORMED_PAYLOAD at 4. (Accepting N >= 1 + 4c would give an OK result.)
+        // Expected: ERR MALFORMED_PAYLOAD@4
+        c.add(TestCase.of("H120", "cp_payload_longer_than_count_is_malformed", "R13",
+                LogBuilder.wal().record(8, Hex.bytes("00 00 00 00 01")).begin(1).commit(1).build(),
+                "ERR MALFORMED_PAYLOAD@4"));
+
+        // H121 cp_four_open_full_list_then_fifth_begin_too_many_open
+        // Rules: R18, R19c, R23c
+        // (Added from the v4 audit: c = 4, and a CHECKPOINT does not close anything.)
+        // Derivation:
+        //   1. Header ok. BEGIN 9 @4 (24 0E), BEGIN 4294967295 @13 (1B 05), BEGIN 2 @22 (1D 07),
+        //      BEGIN 5 @31, ends 40 (20 0A). CP [2, 5, 9, 4294967295] @40: N = 17 (00 11), size
+        //      22, ends 62 (08 00 11 04 00 00 00 02 00 00 00 05 00 00 00 09 FF FF FF FF;
+        //      s1 8,8,25,29,29,29,29,31,31,31,31,36,36,36,36,45,45,45,45,45;
+        //      s2 8,16,41,70,99,128,157,188,219,250,26,62,98,134,170,215,5,50,95,140 -> 8C 2D).
+        //      BEGIN 7 @62, ends 71 (22 0C). L = 71.
+        //   2. Phase 1: all 6 intact (N 4 or 17); p = 71 = L (R5).
+        //   3. Phase 2: the 4 BEGINs open (0, 1, 2, 3 open before each). CP @40: R13 17 = 1+4*4;
+        //      R14 none 0; R19c m = 4 = c, ascending 2, 5, 9, 4294967295 = listed -> right; R23c
+        //      "No transaction opens or closes". BEGIN 7 @62: R13, R14 ok; R17 no earlier BEGIN
+        //      of 7; R18 4 = MAX_OPEN_TXNS are open -> throw TOO_MANY_OPEN at 62.
+        // Expected: ERR TOO_MANY_OPEN@62
+        c.add(TestCase.of("H121", "cp_four_open_full_list_then_fifth_begin_too_many_open", "R18,R19c,R23c",
+                LogBuilder.wal().begin(9).begin(4294967295L).begin(2).begin(5)
+                        .checkpoint(2, 5, 9, 4294967295L).begin(7).build(),
+                "ERR TOO_MANY_OPEN@62"));
+
+        // H122 prec_cp_255_ids_last_is_zero_bad_txn_id
+        // Rules: P4, R8, R13, R14
+        // (Added from the v4 audit: the largest c, and R14 reads every listed id.)
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). CP @13 with c = 255 (FF): listed ids 1, 2,
+        //      ..., 254, then 0. N = 1 + 4*255 = 1021 (03 FD), size 1026, ends 1039, correct
+        //      checksum (written by LogBuilder.record; its value does not decide anything here).
+        //      COMMIT 1 @1039, ends 1048 (31 09). L = 1048.
+        //   2. Phase 1: p = 13: R7 type 8; R8 N = 1021 is not > 1024; R9 1039 <= 1048; R10
+        //      correct -> intact. p = 1039 intact; p = 1048 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens. CP @13 has two problems: listed id number 255 is 0 (R14)
+        //      and a wrong list (R19c: m = 1, c = 255). R13 1021 >= 1, c = 255, 1021 = 1+4*255
+        //      ok; R14 ids 1..254 are not 0, id number 255 is 0 -> throw BAD_TXN_ID at 13.
+        //   4. Deciding rule P4: "BAD_TXN_ID (R14) comes before CHECKPOINT_MISMATCH (R19c)".
+        // Expected: ERR BAD_TXN_ID@13
+        c.add(TestCase.of("H122", "prec_cp_255_ids_last_is_zero_bad_txn_id", "P4,R8,R13,R14",
+                LogBuilder.wal().begin(1)
+                        .checkpoint(java.util.stream.LongStream.concat(java.util.stream.LongStream.range(1, 255),
+                                java.util.stream.LongStream.of(0)).toArray())
+                        .commit(1).build(),
+                "ERR BAD_TXN_ID@13"));
+
+        // H123 cp_empty_list_while_txn_open_is_mismatch
+        // Rules: R19c
+        // (Added from the v4 audit: c = 0 is right only when nothing is open.)
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). CP [] @13: N = 1, size 6, ends 19 (22 09).
+        //      COMMIT 1 @19, ends 28 (31 09). L = 28.
+        //   2. Phase 1: all 3 intact; p = 28 = L (R5).
+        //   3. Phase 2: txn 1 opens. CP @13: R13 1 = 1+4*0; R14 no ids; R19c open {1}, m = 1,
+        //      c = 0 != 1 -> throw CHECKPOINT_MISMATCH at 13.
+        // Expected: ERR CHECKPOINT_MISMATCH@13
+        c.add(TestCase.of("H123", "cp_empty_list_while_txn_open_is_mismatch", "R19c",
+                LogBuilder.wal().begin(1).checkpoint().commit(1).build(),
+                "ERR CHECKPOINT_MISMATCH@13"));
 
         return c;
     }

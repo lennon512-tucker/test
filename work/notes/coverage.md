@@ -1,12 +1,12 @@
 # Hidden test coverage
 
-Rule numbers are those of task/PROMPT.md (DRAFT v3, audited): R1-R27 with the v3 rules R16a, R19a, R19b, R23a, R23b; precedence P1-P5; "Not errors" items 1-15 (section 10).
-Traps T1-T17 are PLAN.md section 4.6; T18-T26 are work/notes/spec-change-v3.md section 5 (levers L1 and L2).
+Rule numbers are those of task/PROMPT.md (DRAFT v4): R1-R27 with the v3 rules R16a, R19a, R19b, R23a, R23b and the v4 rules R19c, R23c; precedence P1-P5; "Not errors" items 1-17 (section 10).
+Traps T1-T17 are PLAN.md section 4.6; T18-T26 are work/notes/spec-change-v3.md section 5 (levers L1 and L2); T27-T34 are work/notes/spec-change-v4.md section 5 (lever L3).
 "Main" means the test was built to check that rule; "also" means the rule is exercised on the way (for example, R13 on a well-formed record) but is not what the test is about.
 
-Status: P5 wrote groups A-C (H01-H24). P6 wrote groups D-H (H25-H63). P7 (audit) added group I (H64-H69). The P8 hardening test session (v3) re-derived H11 and H20 for v3 (type 8 instead of 6/7) and added groups J (L1, H70-H77) and K (L2, H78-H99). The v3 audit (P8 hardening: audit v3 tests) verified H11, H20, H70-H99 and P04 (33/33 agree, work/notes/test-audit.md "v3 audit"), confirmed by a byte-level regression check that the v2 outcomes of H01-H69 still hold, and added group L (H100-H101). Total: 101 hidden tests, all audited.
+Status: P5 wrote groups A-C (H01-H24). P6 wrote groups D-H (H25-H63). P7 (audit) added group I (H64-H69). The P8 hardening test session (v3) re-derived H11 and H20 for v3 (type 8 instead of 6/7) and added groups J (L1, H70-H77) and K (L2, H78-H99). The v3 audit (P8 hardening: audit v3 tests) verified H11, H20, H70-H99 and P04 (33/33 agree, work/notes/test-audit.md "v3 audit"), confirmed by a byte-level regression check that the v2 outcomes of H01-H69 still hold, and added group L (H100-H101). P8 round 3 hardening (v4, L3) moved H11 and H20 to type 9 (type 8 is now CHECKPOINT) and added group M (L3, H102-H118); the v4 audit (work/notes/test-audit-v4.md) agreed 20/20 and added H119-H123. Total: 123 hidden tests.
 
-Groups: A header H01-H06, B framing and tail H07-H20, C checksum details H21-H24, D payload structure H25-H31, E field checks H32-H40, F transactions H41-H52, G precedence and interactions H53-H61, H API contract H62-H63, I P7 coverage gaps H64-H69 (H64 header, H65/H67 payload, H66 framing, H68/H69 precedence), J write limit L1 H70-H77, K savepoints L2 H78-H99, L v3-audit coverage gaps H100-H101 (H100 with J, H101 with K).
+Groups: A header H01-H06, B framing and tail H07-H20, C checksum details H21-H24, D payload structure H25-H31, E field checks H32-H40, F transactions H41-H52, G precedence and interactions H53-H61, H API contract H62-H63, I P7 coverage gaps H64-H69 (H64 header, H65/H67 payload, H66 framing, H68/H69 precedence), J write limit L1 H70-H77, K savepoints L2 H78-H99, L v3-audit coverage gaps H100-H101 (H100 with J, H101 with K), M checkpoints L3 H102-H123 (H119-H123 from the v4 audit).
 
 ## PROMPT.md rule -> tests
 
@@ -65,6 +65,13 @@ Groups: A header H01-H06, B framing and tail H07-H20, C checksum details H21-H24
 | Not errors 13 (ROLLBACK removes nothing; same savepoint twice) | H75, H94 | | removed-in-between case is R19b: H92, H93 |
 | Not errors 14 (same name in two txns) | H90 | H89 (the other txn's name does not count) | |
 | Not errors 15 (unused savepoint) | H84 (name 21 never named by a ROLLBACK) | | |
+| R7 type 8 valid (v4) | H118 | H102-H117 (CHECKPOINT records intact in phase 1), P05 | type 9 unknown: H08, H09, H11, H20 |
+| R13 CHECKPOINT N >= 1, N = 1 + 4c | H112 (N = 0), H113 (c = 2, N = 5: too short), H120 (c = 0, N = 5: too long), H122 (c = 255, N = 1021 ok) | every CP test (c = 0 to 3) | |
+| R14 CHECKPOINT listed id 0 | H111 (first id), H122 (id number 255) | | |
+| R19c checkpoint check | H103, H104, H105, H106, H107, H108, H109, H110, H116, H119, H121 (c = 4), H123 (c = 0 while open) | H102, H114, H115, H117, P05 | |
+| R23c CHECKPOINT changes nothing | H117, H121 (closes nothing: 5th BEGIN still TOO_MANY_OPEN) | H102, H103, H105, H116, P05 | |
+| Not errors 16 (c = 0; several CPs; CP first; CP with writes/savepoints) | H102, H116, H117 | P05 | |
+| Not errors 17 (later commit listed; later BEGIN not listed) | H116, P05 | H110 (the reverse: a later BEGIN listed -> mismatch) | |
 
 ## Outcome -> tests (each Code at least 2)
 
@@ -72,22 +79,23 @@ Groups: A header H01-H06, B framing and tail H07-H20, C checksum details H21-H24
 |---|---|---|
 | BAD_MAGIC | H05, H06 | 2 |
 | UNKNOWN_TYPE | H09, H10, H11, H20 | 4 |
-| RECORD_TOO_LARGE | H16, H18, H19, H54, H66 | 5 |
-| CHECKSUM_MISMATCH | H14, H15, H21, H24, H53, H99 | 6 |
-| MALFORMED_PAYLOAD | H25, H26, H27, H28, H29, H30, H31, H65, H67, H78, H79, H80, H81 | 13 |
-| BAD_TXN_ID | H32, H55, H68, H85 | 4 |
+| RECORD_TOO_LARGE | H16, H18, H19, H54, H66, H118 | 6 |
+| CHECKSUM_MISMATCH | H14, H15, H21, H24, H53, H99, H115 | 7 |
+| MALFORMED_PAYLOAD | H25, H26, H27, H28, H29, H30, H31, H65, H67, H78, H79, H80, H81, H112, H113, H120 | 16 |
+| BAD_TXN_ID | H32, H55, H68, H85, H111, H122 | 6 |
 | BAD_KEY | H33, H35, H36, H37, H56, H100 | 6 |
 | BAD_VALUE | H39, H40, H69, H76 | 4 |
 | DUPLICATE_TXN | H44, H45, H57 | 3 |
-| TOO_MANY_OPEN | H47, H49 | 2 |
+| TOO_MANY_OPEN | H47, H49, H121 | 3 |
 | TXN_NOT_OPEN | H46, H59, H61, H77, H87, H88 | 6 |
 | TXN_TOO_LARGE | H71, H72, H74 | 3 |
 | BAD_NAME | H82, H83, H86 | 3 |
 | NO_SAVEPOINT | H89, H92, H93, H101 | 4 |
+| CHECKPOINT_MISMATCH | H104, H106, H107, H108, H109, H110, H119, H123 | 8 |
 | THROW java.lang.NullPointerException (not a Code) | H63 | 1 |
-| OK (normal result) | H01-H04, H07, H08, H12, H13, H17, H22, H23, H34, H38, H41-H43, H48, H50-H52, H58, H60, H62, H64, H70, H73, H75, H84, H90, H91, H94-H98 | 35 |
+| OK (normal result) | H01-H04, H07, H08, H12, H13, H17, H22, H23, H34, H38, H41-H43, H48, H50-H52, H58, H60, H62, H64, H70, H73, H75, H84, H90, H91, H94-H98, H102, H103, H105, H114, H116, H117 | 41 |
 
-Total 2+4+5+6+13+4+6+4+3+2+6+3+3+4+1+35 = 101. All 14 Codes have at least 2 tests.
+Total 2+4+6+7+16+6+6+4+3+3+6+3+3+4+8+1+41 = 123. All 15 Codes have at least 2 tests.
 
 ## Limits -> tests (both sides)
 
@@ -117,7 +125,7 @@ Total 2+4+5+6+13+4+6+4+3+2+6+3+3+4+1+35 = 101. All 14 Codes have at least 2 test
 | R13 N = 7 + k + v | all well-formed PUTs | H29 (one extra byte), H67 (one byte short) |
 | R13 DELETE N = 5 + k | H37, H50, H51, H62, H72 | H30 (N = 4), H65 (one extra byte) |
 
-## Trap -> tests (T1-T17 PLAN.md 4.6, T18-T26 spec-change-v3.md 5)
+## Trap -> tests (T1-T17 PLAN.md 4.6, T18-T26 spec-change-v3.md 5, T27-T34 spec-change-v4.md 5)
 
 | Trap | Tests | Notes |
 |---|---|---|
@@ -145,8 +153,22 @@ Total 2+4+5+6+13+4+6+4+3+2+6+3+3+4+1+35 = 101. All 14 Codes have at least 2 test
 | T22 equal positions; later by setting record; moved savepoint is later | H93 (equal positions, both directions), H92 (moved s is later than t set between its old and new setting) | |
 | T23 savepoints per transaction | H89 (other txn's name -> NO_SAVEPOINT), H90 (same name in two txns, independent) | |
 | T24 name bytes, N = 4/6, txn 0, BAD_NAME before TXN_NOT_OPEN, TXN_NOT_OPEN before NO_SAVEPOINT | H82 (20), H83 (7F), H84 (21, 7E ok), H78/H79 (SAVEPOINT N = 4/6), H80/H81 (ROLLBACK N = 6/4), H85 (txn 0), H86 (BAD_NAME before TXN_NOT_OPEN), H88 (TXN_NOT_OPEN before NO_SAVEPOINT), H87 (SAVEPOINT txn not open) | H79: MALFORMED before BAD_NAME |
-| T25 types 6/7 valid in phase 1, type 8 unknown; SP/RB in a torn tail ignored | H11, H20 (type 8), H78-H81 (types 6/7 intact in phase 1), H98 (ROLLBACK in the torn tail), H99 (ROLLBACK intact in phase 1) | |
+| T25 types 6/7 valid in phase 1, type 8 unknown (v3; type 9 since v4); SP/RB in a torn tail ignored | H11, H20 (type 9 since v4), H78-H81 (types 6/7 intact in phase 1), H98 (ROLLBACK in the torn tail), H99 (ROLLBACK intact in phase 1) | |
 | T26 ROLLBACK then ABORT; ROLLBACK without COMMIT; SP/RB not in lists | H97 (ABORT after ROLLBACK, aborted = [1] only), H98 (incomplete txn with SAVEPOINT and ROLLBACK) | every group K OK test: SP/RB add nothing to committed/aborted |
+| T27 CP list ascending, not BEGIN order | H103 (right), H104 (BEGIN order -> mismatch) | P05 |
+| T28 CP order by unsigned u32 value | H105 (7 < 2^31 < 2^32-1 right), H106 (signed order -> mismatch) | |
+| T29 open set at this record only | H107 (committed id listed), H110 (id that begins later listed), H116 (aborted / committed ids not listed, later BEGIN not listed) | P05 |
+| T30 exact list: no missing, no repeated id, no id that is not open | H108 (missing), H109 (repeated), H119 (right count and order, one id not open) | |
+| T31 c = 0 | H102 (right), H123 (wrong while open) | |
+| T32 CP field checks: N = 0, c vs N, listed 0; MALFORMED before BAD_TXN_ID before MISMATCH | H112, H113 (MALFORMED before BAD_TXN_ID), H120 (N too long), H111, H122 (BAD_TXN_ID before MISMATCH; 0 first / last of 255) | |
+| T33 type 8 in phase 1; CP in torn tail; phase 1 before CP mismatch | H118 (R8 on type 8), H114 (torn tail), H115 (P2) | H11, H20: type 9 unknown |
+| T34 CP changes nothing (no write, savepoints kept, no txn closed; not in lists) | H117, H121 | H116, P05 |
+
+## P8 round 3 hardening (v4, L3), 2026-11-24
+
+- H11 (renamed frame_type_eight_first_record -> frame_type_nine_first_record) and H20: the type-8 frames became type 9 (one above CHECKPOINT), same N and payload; correct checksum 54 0E (09 00 04 00 00 00 01; s1 9,9,13,13,13,13,14; s2 9,18,31,44,57,70,84), H20 stored 00 00. Expected lines unchanged (ERR UNKNOWN_TYPE@4, ERR UNKNOWN_TYPE@13); purposes kept.
+- Mechanical scan (work/scratch/p8l3/scan_frames.py, frame walk by N only): the only type-8 frame starts in H01-H101 were H11 and H20; H08/H09 use type 9 (still unknown; comments updated to 1..8). Quoted P4 order sentences (H68, H79, H85 and 6 "R17 to R19b" quotes) and the R25 quote in H97 updated to the v4 wording.
+- Group M (H102-H118) added: 17 tests, hand-derived, inputs equal to work/scratch/p8l3/layout.py bytes (17/17).
 
 ## Questions for the audit (v3)
 

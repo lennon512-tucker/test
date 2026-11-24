@@ -1,0 +1,165 @@
+==== ../../../wal-recovery/tests/public/PublicTests.java : non-test code ====
+import java.util.ArrayList;
+import java.util.List;
+public final class PublicTests {
+    private PublicTests() {}
+    public static List<TestCase> cases() {
+        List<TestCase> c = new ArrayList<>();
+        c.add(<TEST P01>);
+        c.add(<TEST P02>);
+        c.add(<TEST P03>);
+        c.add(<TEST P04>);
+        c.add(<TEST P05>);
+        return c;
+    }
+}
+==== ../../../wal-recovery/tests/public/PublicTests.java : tests ====
+P05: Hex.bytes( "57 41 4C 31" + " 01 00 04 00 00 00 02 1D 07" + " 01 00 04 00 00 00 01 1C 06" + " 02 00 09 00 00 00 01 01 61 00 01 31 36 A0" + " 08 00 09 02 00 00 00 01 00 00 00 02 D3 16" + " 04 00 04 00 00 00 01 31 09" + " 08 00 05 01 00 00 00 02 65 10")
+==== ../../../wal-recovery/tests/hidden/HiddenTests.java : non-test code ====
+import java.util.ArrayList;
+import java.util.List;
+public final class HiddenTests {
+    private HiddenTests() {}
+    public static List<TestCase> cases() {
+        List<TestCase> c = new ArrayList<>();
+        c.add(<TEST H01>);
+        c.add(<TEST H02>);
+        c.add(<TEST H03>);
+        c.add(<TEST H04>);
+        c.add(<TEST H05>);
+        c.add(<TEST H06>);
+        c.add(<TEST H07>);
+        c.add(<TEST H08>);
+        c.add(<TEST H09>);
+        c.add(<TEST H10>);
+        c.add(<TEST H11>);
+        c.add(<TEST H12>);
+        c.add(<TEST H13>);
+        c.add(<TEST H14>);
+        c.add(<TEST H15>);
+        c.add(<TEST H16>);
+        c.add(<TEST H17>);
+        c.add(<TEST H18>);
+        c.add(<TEST H19>);
+        c.add(<TEST H20>);
+        c.add(<TEST H21>);
+        c.add(<TEST H22>);
+        c.add(<TEST H23>);
+        c.add(<TEST H24>);
+        c.add(<TEST H25>);
+        c.add(<TEST H26>);
+        c.add(<TEST H27>);
+        c.add(<TEST H28>);
+        c.add(<TEST H29>);
+        c.add(<TEST H30>);
+        c.add(<TEST H31>);
+        c.add(<TEST H32>);
+        c.add(<TEST H33>);
+        c.add(<TEST H34>);
+        c.add(<TEST H35>);
+        c.add(<TEST H36>);
+        c.add(<TEST H37>);
+        c.add(<TEST H38>);
+        c.add(<TEST H39>);
+        c.add(<TEST H40>);
+        c.add(<TEST H41>);
+        c.add(<TEST H42>);
+        c.add(<TEST H43>);
+        c.add(<TEST H44>);
+        c.add(<TEST H45>);
+        c.add(<TEST H46>);
+        c.add(<TEST H47>);
+        c.add(<TEST H48>);
+        c.add(<TEST H49>);
+        c.add(<TEST H50>);
+        c.add(<TEST H51>);
+        c.add(<TEST H52>);
+        c.add(<TEST H53>);
+        c.add(<TEST H54>);
+        c.add(<TEST H55>);
+        c.add(<TEST H56>);
+        c.add(<TEST H57>);
+        c.add(<TEST H58>);
+        c.add(<TEST H59>);
+        c.add(<TEST H60>);
+        c.add(<TEST H61>);
+        c.add(<TEST H62>);
+        c.add(<TEST H63>);
+        c.add(<TEST H64>);
+        c.add(<TEST H65>);
+        c.add(<TEST H66>);
+        c.add(<TEST H67>);
+        c.add(<TEST H68>);
+        c.add(<TEST H69>);
+        c.add(<TEST H70>);
+        c.add(<TEST H71>);
+        c.add(<TEST H72>);
+        c.add(<TEST H73>);
+        c.add(<TEST H74>);
+        c.add(<TEST H75>);
+        c.add(<TEST H76>);
+        c.add(<TEST H77>);
+        c.add(<TEST H78>);
+        c.add(<TEST H79>);
+        c.add(<TEST H80>);
+        c.add(<TEST H81>);
+        c.add(<TEST H82>);
+        c.add(<TEST H83>);
+        c.add(<TEST H84>);
+        c.add(<TEST H85>);
+        c.add(<TEST H86>);
+        c.add(<TEST H87>);
+        c.add(<TEST H88>);
+        c.add(<TEST H89>);
+        c.add(<TEST H90>);
+        c.add(<TEST H91>);
+        c.add(<TEST H92>);
+        c.add(<TEST H93>);
+        c.add(<TEST H94>);
+        c.add(<TEST H95>);
+        c.add(<TEST H96>);
+        c.add(<TEST H97>);
+        c.add(<TEST H98>);
+        c.add(<TEST H99>);
+        c.add(<TEST H100>);
+        c.add(<TEST H101>);
+        c.add(<TEST H102>);
+        c.add(<TEST H103>);
+        c.add(<TEST H104>);
+        c.add(<TEST H105>);
+        c.add(<TEST H106>);
+        c.add(<TEST H107>);
+        c.add(<TEST H108>);
+        c.add(<TEST H109>);
+        c.add(<TEST H110>);
+        c.add(<TEST H111>);
+        c.add(<TEST H112>);
+        c.add(<TEST H113>);
+        c.add(<TEST H114>);
+        c.add(<TEST H115>);
+        c.add(<TEST H116>);
+        c.add(<TEST H117>);
+        c.add(<TEST H118>);
+        return c;
+    }
+}
+==== ../../../wal-recovery/tests/hidden/HiddenTests.java : tests ====
+H11: LogBuilder.wal().record(9, Hex.bytes("00 00 00 01")).begin(1).build()
+H20: LogBuilder.wal().begin(1).frame(9, 4, Hex.bytes("00 00 00 01"), 0x0000).build()
+H102: LogBuilder.wal().checkpoint().begin(1).put(1, "a", "1").commit(1).build()
+H103: LogBuilder.wal().begin(5).begin(3).checkpoint(3, 5).build()
+H104: LogBuilder.wal().begin(5).begin(3).checkpoint(5, 3).build()
+H105: LogBuilder.wal().begin(4294967295L).begin(2147483648L).begin(7) .checkpoint(7, 2147483648L, 4294967295L).commit(7).build()
+H106: LogBuilder.wal().begin(4294967295L).begin(2147483648L).begin(7) .checkpoint(2147483648L, 4294967295L, 7).commit(7).build()
+H107: LogBuilder.wal().begin(1).begin(2).commit(1).checkpoint(1, 2).build()
+H108: LogBuilder.wal().begin(1).begin(2).checkpoint(1).build()
+H109: LogBuilder.wal().begin(1).checkpoint(1, 1).build()
+H110: LogBuilder.wal().checkpoint(9).begin(9).commit(9).build()
+H111: LogBuilder.wal().begin(1).checkpoint(0, 1).build()
+H112: LogBuilder.wal().begin(1).record(8, new byte[0]).commit(1).build()
+H113: LogBuilder.wal().begin(1).record(8, Hex.bytes("02 00 00 00 00")).commit(1).build()
+H114: LogBuilder.wal().begin(1).put(1, "a", "1").commit(1).checkpoint(5).corruptLastChecksum().build()
+H115: LogBuilder.wal().checkpoint(9).begin(1).put(1, "a", "1").corruptLastChecksum().commit(1).build()
+H116: LogBuilder.wal().begin(1).begin(2).abort(2).checkpoint(1).begin(3).put(3, "c", "3") .commit(3).checkpoint(1).commit(1).build()
+H117: LogBuilder.wal().begin(1).put(1, "a", "1").savepoint(1, 0x73).put(1, "b", "2") .checkpoint(1).rollback(1, 0x73).commit(1).build()
+H118: LogBuilder.wal().begin(1).frame(8, 1025, new byte[0], 0x0000).build()

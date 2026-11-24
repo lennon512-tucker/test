@@ -46,6 +46,11 @@ public final class HarnessCheck {
                 .rollback(1, 0x73)
                 .put(1, "c", "3")
                 .commit(1).build()));
+        System.out.println("BYTES example5 " + Hex.format(LogBuilder.wal()
+                .begin(2).begin(1).put(1, "a", "1")
+                .checkpoint(1, 2)
+                .commit(1)
+                .checkpoint(2).build()));
 
         // The public tests' inputs
         for (TestCase tc : PublicTests.cases()) {
@@ -71,6 +76,13 @@ public final class HarnessCheck {
         // s2 7,14,26,38,50,62,76,90 -> s2 90 = 5A, s1 14 = 0E
         eq("rollback_record", "07 00 05 00 00 00 02 FF 5A 0E",
                 Hex.format(LogBuilder.raw().rollback(2, 0xFF).build()));
+        // CHECKPOINT with c = 0, by hand: 08 00 01 00; s1 8,8,9,9; s2 8,16,25,34 -> s2 34 = 22, s1 9 = 09
+        eq("checkpoint_empty_record", "08 00 01 00 22 09", Hex.format(LogBuilder.raw().checkpoint().build()));
+        // CHECKPOINT [4294967295, 0], by hand: 08 00 09 02 FF FF FF FF 00 00 00 00;
+        // s1 8,8,17,19,274-255=19,19,19,19,19,19,19,19 (each FF adds 255 = 0 mod 255);
+        // s2 8,16,33,52,71,90,109,128,147,166,185,204 -> s2 204 = CC, s1 19 = 13
+        eq("checkpoint_ids_as_given", "08 00 09 02 FF FF FF FF 00 00 00 00 CC 13",
+                Hex.format(LogBuilder.raw().checkpoint(4294967295L, 0).build()));
         LogBuilder lb = LogBuilder.wal().begin(1);
         byte[] first = lb.build();
         lb.commit(1);

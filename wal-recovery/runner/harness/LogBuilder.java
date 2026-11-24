@@ -66,6 +66,18 @@ public final class LogBuilder {
     /** ROLLBACK (type 7): txn (4 bytes), name (1 byte, any value 0 to 255). */
     public LogBuilder rollback(long txn, int name) { return record(7, txnAndName(txn, name)); }
 
+    /**
+     * CHECKPOINT (type 8): c (1 byte) = ids.length, then each id as 4 bytes. Ids are written as
+     * given (any order, repeats and 0 allowed), so tests can build wrong lists.
+     */
+    public LogBuilder checkpoint(long... ids) {
+        if (ids.length > 255) throw new IllegalArgumentException("more than 255 ids");
+        byte[] p = new byte[1 + 4 * ids.length];
+        p[0] = (byte) ids.length;
+        for (int i = 0; i < ids.length; i++) System.arraycopy(u32(ids[i]), 0, p, 1 + 4 * i, 4);
+        return record(8, p);
+    }
+
     /** A record with the true payload length and the correct checksum. */
     public LogBuilder record(int type, byte[] payload) {
         if (payload.length > 65535) throw new IllegalArgumentException("payload longer than 65535 bytes");

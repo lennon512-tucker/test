@@ -102,6 +102,32 @@ public final class PublicTests {
               + " 04 00 04 00 00 00 01 31 09"),
                 "OK state={\"a\"=\"1\", \"c\"=\"3\"} committed=[1] aborted=[] incomplete=[] validLength=95 tornTail=false"));
 
+        // P05 Example 5: checkpoints. R5, R19c, R22, R23c, R26.
+        // Derivation (bytes and outcome are PROMPT.md section 11, Example 5):
+        //   1. Header ok (R4). 6 records: BEGIN 2 @4 (ends 13, 1D 07), BEGIN 1 @13 (ends 22, 1C 06),
+        //      PUT 1 a=1 @22 (N = 9, ends 36, 36 A0), CHECKPOINT c = 2 [1, 2] @36 (type 8, N = 9,
+        //      ends 50; 08 00 09 02 00 00 00 01 00 00 00 02: s1 8,8,17,19,19,19,19,20,20,20,20,22;
+        //      s2 8,16,33,52,71,90,109,129,149,169,189,211 -> D3 16), COMMIT 1 @50 (ends 59, 31 09),
+        //      CHECKPOINT c = 1 [2] @59 (N = 5, ends 69; 08 00 05 01 00 00 00 02: s1 8,8,13,14,14,
+        //      14,14,16; s2 8,16,29,43,57,71,85,101 -> 65 10). Each: type 1-8, N <= 1024, fits,
+        //      correct checksum -> intact (R11).
+        //   2. p = 69 = L (R5): validLength = 69, tornTail = false.
+        //   3. Phase 2: BEGIN 2, BEGIN 1 open (2 open, R18 fine). PUT -> writes(1) = [PUT a=1].
+        //      CHECKPOINT @36: R13 N = 9 >= 1, c = 2, 9 = 1+4*2; R14 ids 1, 2 not 0; R19c open
+        //      {2, 1}, m = 2, ascending 1, 2 = listed 1, 2 -> right; R23c nothing changes.
+        //      COMMIT 1 applies a=1 (R22). CHECKPOINT @59: R13 5 = 1+4*1; R14 id 2; R19c open {2},
+        //      m = 1, list [2] -> right. End: txn 2 open -> incomplete [2] (R26).
+        // Expected: OK state={"a"="1"} committed=[1] aborted=[] incomplete=[2] validLength=69 tornTail=false
+        c.add(TestCase.of("P05", "example5_checkpoints", "R5,R19c,R22,R23c,R26", Hex.bytes(
+                "57 41 4C 31"
+              + " 01 00 04 00 00 00 02 1D 07"
+              + " 01 00 04 00 00 00 01 1C 06"
+              + " 02 00 09 00 00 00 01 01 61 00 01 31 36 A0"
+              + " 08 00 09 02 00 00 00 01 00 00 00 02 D3 16"
+              + " 04 00 04 00 00 00 01 31 09"
+              + " 08 00 05 01 00 00 00 02 65 10"),
+                "OK state={\"a\"=\"1\"} committed=[1] aborted=[] incomplete=[2] validLength=69 tornTail=false"));
+
         return c;
     }
 }
