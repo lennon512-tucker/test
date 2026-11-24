@@ -1,0 +1,348 @@
+COMPILE ERROR (first 30 lines of javac output; full log in build/web_gemini_run_1/compile.log):
+  build/web_gemini_run_1/src/WalRecovery.java:315: error: cannot find symbol
+                          Iterator> it = tx.savepoints.entrySet().iterator();
+                          ^
+    symbol:   variable Iterator
+    location: class WalRecovery
+  build/web_gemini_run_1/src/WalRecovery.java:315: error: cannot find symbol
+                          Iterator> it = tx.savepoints.entrySet().iterator();
+                                    ^
+    symbol:   variable it
+    location: class WalRecovery
+  build/web_gemini_run_1/src/WalRecovery.java:316: error: cannot find symbol
+                          while (it.hasNext()) {
+                                 ^
+    symbol:   variable it
+    location: class WalRecovery
+  build/web_gemini_run_1/src/WalRecovery.java:317: error: cannot find symbol
+                              Map.Entry<Integer, Savepoint> entry = it.next();
+                                                                    ^
+    symbol:   variable it
+    location: class WalRecovery
+  build/web_gemini_run_1/src/WalRecovery.java:319: error: cannot find symbol
+                                  it.remove();
+                                  ^
+    symbol:   variable it
+    location: class WalRecovery
+  5 errors
+public: 0 / 4 passed
+hidden: 0 / 101 passed
+
+FAILURES (105):
+P01 example1_interleaved_transactions (public)
+  expected: OK state={"a"="1", "b"="x"} committed=[2, 1] aborted=[3] incomplete=[4] validLength=134 tornTail=false
+  actual:   COMPILE_ERROR
+P02 example2_torn_tail (public)
+  expected: OK state={"x"="hello"} committed=[1] aborted=[] incomplete=[2] validLength=65 tornTail=true
+  actual:   COMPILE_ERROR
+P03 example3_checksum_mismatch_middle (public)
+  expected: ERR CHECKSUM_MISMATCH@13
+  actual:   COMPILE_ERROR
+P04 example4_savepoint_rollback (public)
+  expected: OK state={"a"="1", "c"="3"} committed=[1] aborted=[] incomplete=[] validLength=95 tornTail=false
+  actual:   COMPILE_ERROR
+H01 header_empty_log (hidden)
+  expected: OK state={} committed=[] aborted=[] incomplete=[] validLength=0 tornTail=false
+  actual:   COMPILE_ERROR
+H02 header_only_log (hidden)
+  expected: OK state={} committed=[] aborted=[] incomplete=[] validLength=4 tornTail=false
+  actual:   COMPILE_ERROR
+H03 header_partial_magic_one_byte_is_torn (hidden)
+  expected: OK state={} committed=[] aborted=[] incomplete=[] validLength=0 tornTail=true
+  actual:   COMPILE_ERROR
+H04 header_partial_magic_two_bytes_is_torn (hidden)
+  expected: OK state={} committed=[] aborted=[] incomplete=[] validLength=0 tornTail=true
+  actual:   COMPILE_ERROR
+H05 header_three_bytes_wrong_third_is_bad_magic (hidden)
+  expected: ERR BAD_MAGIC@0
+  actual:   COMPILE_ERROR
+H06 header_wrong_magic_last_byte_with_valid_records (hidden)
+  expected: ERR BAD_MAGIC@0
+  actual:   COMPILE_ERROR
+H07 tail_one_leftover_byte_after_commit (hidden)
+  expected: OK state={} committed=[1] aborted=[] incomplete=[] validLength=22 tornTail=true
+  actual:   COMPILE_ERROR
+H08 tail_two_leftover_bytes_unknown_type_is_torn (hidden)
+  expected: OK state={} committed=[] aborted=[] incomplete=[1] validLength=13 tornTail=true
+  actual:   COMPILE_ERROR
+H09 tail_three_leftover_bytes_unknown_type_is_error (hidden)
+  expected: ERR UNKNOWN_TYPE@13
+  actual:   COMPILE_ERROR
+H10 frame_type_zero_in_middle (hidden)
+  expected: ERR UNKNOWN_TYPE@13
+  actual:   COMPILE_ERROR
+H11 frame_type_eight_first_record (hidden)
+  expected: ERR UNKNOWN_TYPE@4
+  actual:   COMPILE_ERROR
+H12 tail_payload_cut_short_is_torn (hidden)
+  expected: OK state={"a"="1"} committed=[1] aborted=[] incomplete=[2] validLength=45 tornTail=true
+  actual:   COMPILE_ERROR
+H13 tail_last_record_bad_checksum_ends_at_L_is_torn (hidden)
+  expected: OK state={} committed=[] aborted=[] incomplete=[1] validLength=27 tornTail=true
+  actual:   COMPILE_ERROR
+H14 frame_bad_checksum_one_byte_before_L_is_mismatch (hidden)
+  expected: ERR CHECKSUM_MISMATCH@27
+  actual:   COMPILE_ERROR
+H15 frame_bad_checksum_in_middle (hidden)
+  expected: ERR CHECKSUM_MISMATCH@22
+  actual:   COMPILE_ERROR
+H16 frame_length_1025_is_too_large (hidden)
+  expected: ERR RECORD_TOO_LARGE@13
+  actual:   COMPILE_ERROR
+H17 frame_length_1024_is_allowed (hidden)
+  expected: OK state={"k"="ok"} committed=[1] aborted=[] incomplete=[] validLength=1066 tornTail=false
+  actual:   COMPILE_ERROR
+H18 frame_length_0x8001_is_too_large_unsigned (hidden)
+  expected: ERR RECORD_TOO_LARGE@13
+  actual:   COMPILE_ERROR
+H19 frame_cut_short_length_2000_too_large_beats_torn (hidden)
+  expected: ERR RECORD_TOO_LARGE@13
+  actual:   COMPILE_ERROR
+H20 frame_last_record_unknown_type_bad_checksum_is_error (hidden)
+  expected: ERR UNKNOWN_TYPE@13
+  actual:   COMPILE_ERROR
+H21 checksum_over_payload_only_is_rejected (hidden)
+  expected: ERR CHECKSUM_MISMATCH@13
+  actual:   COMPILE_ERROR
+H22 checksum_txn_ff_bytes_unsigned (hidden)
+  expected: OK state={} committed=[] aborted=[4294967295] incomplete=[] validLength=36 tornTail=false
+  actual:   COMPILE_ERROR
+H23 checksum_length_byte_c8_unsigned (hidden)
+  expected: OK state={"n"="200"} committed=[1] aborted=[] incomplete=[] validLength=254 tornTail=false
+  actual:   COMPILE_ERROR
+H24 checksum_s1_s2_swapped_is_rejected (hidden)
+  expected: ERR CHECKSUM_MISMATCH@4
+  actual:   COMPILE_ERROR
+H25 payload_begin_n3_is_malformed (hidden)
+  expected: ERR MALFORMED_PAYLOAD@13
+  actual:   COMPILE_ERROR
+H26 payload_begin_n5_is_malformed (hidden)
+  expected: ERR MALFORMED_PAYLOAD@4
+  actual:   COMPILE_ERROR
+H27 payload_put_key_past_payload_end_is_malformed (hidden)
+  expected: ERR MALFORMED_PAYLOAD@13
+  actual:   COMPILE_ERROR
+H28 payload_put_no_room_for_value_length_is_malformed (hidden)
+  expected: ERR MALFORMED_PAYLOAD@13
+  actual:   COMPILE_ERROR
+H29 payload_put_one_extra_byte_is_malformed (hidden)
+  expected: ERR MALFORMED_PAYLOAD@13
+  actual:   COMPILE_ERROR
+H30 payload_delete_n4_is_malformed (hidden)
+  expected: ERR MALFORMED_PAYLOAD@13
+  actual:   COMPILE_ERROR
+H31 payload_commit_n0_is_malformed (hidden)
+  expected: ERR MALFORMED_PAYLOAD@13
+  actual:   COMPILE_ERROR
+H32 field_txn_zero_is_bad_txn_id (hidden)
+  expected: ERR BAD_TXN_ID@4
+  actual:   COMPILE_ERROR
+H33 field_key_length_zero_is_bad_key (hidden)
+  expected: ERR BAD_KEY@13
+  actual:   COMPILE_ERROR
+H34 field_key_length_32_with_edge_bytes_is_ok (hidden)
+  expected: OK state={"!abcdefghijklmnopqrstuvwxyz0123~"="1"} committed=[1] aborted=[] incomplete=[] validLength=67 tornTail=false
+  actual:   COMPILE_ERROR
+H35 field_key_length_33_is_bad_key (hidden)
+  expected: ERR BAD_KEY@13
+  actual:   COMPILE_ERROR
+H36 field_key_with_space_is_bad_key (hidden)
+  expected: ERR BAD_KEY@13
+  actual:   COMPILE_ERROR
+H37 field_delete_key_with_0x7f_is_bad_key (hidden)
+  expected: ERR BAD_KEY@27
+  actual:   COMPILE_ERROR
+H38 field_value_with_space_and_tilde_is_ok (hidden)
+  expected: OK state={"v"=" ~"} committed=[1] aborted=[] incomplete=[] validLength=37 tornTail=false
+  actual:   COMPILE_ERROR
+H39 field_value_with_0x1f_is_bad_value (hidden)
+  expected: ERR BAD_VALUE@13
+  actual:   COMPILE_ERROR
+H40 field_value_with_0x7f_is_bad_value (hidden)
+  expected: ERR BAD_VALUE@27
+  actual:   COMPILE_ERROR
+H41 txn_commit_order_not_log_order (hidden)
+  expected: OK state={"k"="b", "m"="1"} committed=[7, 3] aborted=[] incomplete=[] validLength=82 tornTail=false
+  actual:   COMPILE_ERROR
+H42 txn_abort_drops_writes_then_empty_commit (hidden)
+  expected: OK state={"a"="1"} committed=[1, 3] aborted=[2] incomplete=[] validLength=100 tornTail=false
+  actual:   COMPILE_ERROR
+H43 txn_incomplete_sorted_unsigned (hidden)
+  expected: OK state={} committed=[] aborted=[] incomplete=[5, 2147483647, 2147483648, 4294967295] validLength=40 tornTail=false
+  actual:   COMPILE_ERROR
+H44 txn_duplicate_open_id (hidden)
+  expected: ERR DUPLICATE_TXN@22
+  actual:   COMPILE_ERROR
+H45 txn_duplicate_committed_id (hidden)
+  expected: ERR DUPLICATE_TXN@36
+  actual:   COMPILE_ERROR
+H46 txn_put_after_commit_is_not_open (hidden)
+  expected: ERR TXN_NOT_OPEN@22
+  actual:   COMPILE_ERROR
+H47 txn_fifth_begin_too_many_open (hidden)
+  expected: ERR TOO_MANY_OPEN@40
+  actual:   COMPILE_ERROR
+H48 txn_commit_frees_slot (hidden)
+  expected: OK state={} committed=[2] aborted=[] incomplete=[1, 3, 4, 5] validLength=58 tornTail=false
+  actual:   COMPILE_ERROR
+H49 txn_abort_frees_one_slot_only (hidden)
+  expected: ERR TOO_MANY_OPEN@58
+  actual:   COMPILE_ERROR
+H50 txn_delete_missing_key_in_commit_order (hidden)
+  expected: OK state={"x"="1"} committed=[2, 1] aborted=[] incomplete=[] validLength=76 tornTail=false
+  actual:   COMPILE_ERROR
+H51 txn_put_delete_put_empty_value_same_txn (hidden)
+  expected: OK state={"b"=""} committed=[1] aborted=[] incomplete=[] validLength=74 tornTail=false
+  actual:   COMPILE_ERROR
+H52 txn_max_id_end_to_end (hidden)
+  expected: OK state={"max"="u32"} committed=[4294967295] aborted=[] incomplete=[1] validLength=49 tornTail=false
+  actual:   COMPILE_ERROR
+H53 prec_phase2_error_early_checksum_error_later (hidden)
+  expected: ERR CHECKSUM_MISMATCH@22
+  actual:   COMPILE_ERROR
+H54 prec_malformed_early_too_large_later (hidden)
+  expected: ERR RECORD_TOO_LARGE@18
+  actual:   COMPILE_ERROR
+H55 prec_bad_txn_id_before_bad_key_same_record (hidden)
+  expected: ERR BAD_TXN_ID@13
+  actual:   COMPILE_ERROR
+H56 prec_bad_key_before_txn_not_open (hidden)
+  expected: ERR BAD_KEY@13
+  actual:   COMPILE_ERROR
+H57 prec_duplicate_before_too_many_open (hidden)
+  expected: ERR DUPLICATE_TXN@58
+  actual:   COMPILE_ERROR
+H58 prec_commit_in_torn_tail_is_not_applied (hidden)
+  expected: OK state={} committed=[1] aborted=[] incomplete=[2] validLength=45 tornTail=true
+  actual:   COMPILE_ERROR
+H59 prec_phase2_error_before_torn_tail_is_thrown (hidden)
+  expected: ERR TXN_NOT_OPEN@13
+  actual:   COMPILE_ERROR
+H60 prec_invalid_content_in_torn_record_is_ignored (hidden)
+  expected: OK state={"a"="1"} committed=[1] aborted=[] incomplete=[] validLength=36 tornTail=true
+  actual:   COMPILE_ERROR
+H61 prec_first_failing_record_wins_over_check_order (hidden)
+  expected: ERR TXN_NOT_OPEN@13
+  actual:   COMPILE_ERROR
+H62 api_input_not_modified_rich_log (hidden)
+  expected: OK state={"a"="", "k"="v x"} committed=[2, 4294967295] aborted=[3] incomplete=[200] validLength=121 tornTail=true
+  actual:   COMPILE_ERROR
+H63 api_null_input (hidden)
+  expected: THROW java.lang.NullPointerException
+  actual:   COMPILE_ERROR
+H64 header_partial_magic_three_bytes_is_torn (hidden)
+  expected: OK state={} committed=[] aborted=[] incomplete=[] validLength=0 tornTail=true
+  actual:   COMPILE_ERROR
+H65 payload_delete_one_extra_byte_is_malformed (hidden)
+  expected: ERR MALFORMED_PAYLOAD@27
+  actual:   COMPILE_ERROR
+H66 frame_too_large_last_record_bad_checksum_ends_at_L_is_error (hidden)
+  expected: ERR RECORD_TOO_LARGE@13
+  actual:   COMPILE_ERROR
+H67 payload_put_value_cut_short_is_malformed (hidden)
+  expected: ERR MALFORMED_PAYLOAD@13
+  actual:   COMPILE_ERROR
+H68 prec_bad_txn_id_before_too_many_open (hidden)
+  expected: ERR BAD_TXN_ID@40
+  actual:   COMPILE_ERROR
+H69 prec_bad_value_before_txn_not_open (hidden)
+  expected: ERR BAD_VALUE@13
+  actual:   COMPILE_ERROR
+H70 l1_exactly_8_writes_then_commit_ok (hidden)
+  expected: OK state={"b"="2", "c"="3", "d"="4", "e"="5", "f"="6", "g"="7", "z"="0"} committed=[1, 2] aborted=[] incomplete=[] validLength=163 tornTail=false
+  actual:   COMPILE_ERROR
+H71 l1_ninth_put_same_key_is_too_large (hidden)
+  expected: ERR TXN_TOO_LARGE@125
+  actual:   COMPILE_ERROR
+H72 l1_ninth_write_delete_is_too_large (hidden)
+  expected: ERR TXN_TOO_LARGE@113
+  actual:   COMPILE_ERROR
+H73 l1_rollback_frees_room_back_to_8_then_commit (hidden)
+  expected: OK state={"a"="1", "b"="2", "c"="3", "d"="4", "e"="5", "f"="6", "i"="9", "j"="0"} committed=[1] aborted=[] incomplete=[] validLength=182 tornTail=false
+  actual:   COMPILE_ERROR
+H74 l1_rollback_frees_room_then_ninth_in_list_is_too_large (hidden)
+  expected: ERR TXN_TOO_LARGE@173
+  actual:   COMPILE_ERROR
+H75 l1_savepoint_and_rollback_at_8_writes_ok (hidden)
+  expected: OK state={"a"="1", "b"="2", "c"="3", "d"="4", "e"="5", "f"="6", "g"="7", "h"="8"} committed=[1] aborted=[] incomplete=[] validLength=154 tornTail=false
+  actual:   COMPILE_ERROR
+H76 prec_bad_value_before_txn_too_large (hidden)
+  expected: ERR BAD_VALUE@125
+  actual:   COMPILE_ERROR
+H77 prec_txn_not_open_before_txn_too_large (hidden)
+  expected: ERR TXN_NOT_OPEN@134
+  actual:   COMPILE_ERROR
+H78 sp_payload_n4_is_malformed (hidden)
+  expected: ERR MALFORMED_PAYLOAD@13
+  actual:   COMPILE_ERROR
+H79 prec_malformed_before_bad_name_savepoint_n6 (hidden)
+  expected: ERR MALFORMED_PAYLOAD@13
+  actual:   COMPILE_ERROR
+H80 rb_payload_n6_is_malformed (hidden)
+  expected: ERR MALFORMED_PAYLOAD@23
+  actual:   COMPILE_ERROR
+H81 rb_payload_n4_is_malformed (hidden)
+  expected: ERR MALFORMED_PAYLOAD@23
+  actual:   COMPILE_ERROR
+H82 sp_name_0x20_is_bad_name (hidden)
+  expected: ERR BAD_NAME@27
+  actual:   COMPILE_ERROR
+H83 rb_name_0x7f_is_bad_name_before_no_savepoint (hidden)
+  expected: ERR BAD_NAME@23
+  actual:   COMPILE_ERROR
+H84 sp_rb_names_0x21_and_0x7e_ok (hidden)
+  expected: OK state={"a"="1", "c"="3"} committed=[1] aborted=[] incomplete=[] validLength=94 tornTail=false
+  actual:   COMPILE_ERROR
+H85 prec_bad_txn_id_before_bad_name (hidden)
+  expected: ERR BAD_TXN_ID@23
+  actual:   COMPILE_ERROR
+H86 prec_bad_name_before_txn_not_open (hidden)
+  expected: ERR BAD_NAME@13
+  actual:   COMPILE_ERROR
+H87 sp_txn_not_open (hidden)
+  expected: ERR TXN_NOT_OPEN@27
+  actual:   COMPILE_ERROR
+H88 prec_txn_not_open_before_no_savepoint (hidden)
+  expected: ERR TXN_NOT_OPEN@46
+  actual:   COMPILE_ERROR
+H89 sp_per_transaction_rollback_in_other_txn_is_no_savepoint (hidden)
+  expected: ERR NO_SAVEPOINT@46
+  actual:   COMPILE_ERROR
+H90 sp_same_name_two_txns_independent (hidden)
+  expected: OK state={"a"="1"} committed=[1, 2] aborted=[] incomplete=[] validLength=122 tornTail=false
+  actual:   COMPILE_ERROR
+H91 sp_reused_name_moves_savepoint (hidden)
+  expected: OK state={"a"="1", "d"="4"} committed=[1] aborted=[] incomplete=[] validLength=128 tornTail=false
+  actual:   COMPILE_ERROR
+H92 rb_removes_moved_savepoint_then_no_savepoint (hidden)
+  expected: ERR NO_SAVEPOINT@81
+  actual:   COMPILE_ERROR
+H93 rb_equal_positions_decided_by_setting_record_offset (hidden)
+  expected: ERR NO_SAVEPOINT@81
+  actual:   COMPILE_ERROR
+H94 rb_same_savepoint_twice (hidden)
+  expected: OK state={"a"="1", "d"="4"} committed=[1] aborted=[] incomplete=[] validLength=108 tornTail=false
+  actual:   COMPILE_ERROR
+H95 rb_to_savepoint_at_position_0 (hidden)
+  expected: OK state={"b"="2"} committed=[2, 1] aborted=[] incomplete=[] validLength=99 tornTail=false
+  actual:   COMPILE_ERROR
+H96 rb_commit_applies_kept_writes_in_order (hidden)
+  expected: OK state={"a"="1", "b"="5"} committed=[1] aborted=[] incomplete=[] validLength=123 tornTail=false
+  actual:   COMPILE_ERROR
+H97 rb_then_abort_applies_nothing (hidden)
+  expected: OK state={} committed=[] aborted=[1] incomplete=[] validLength=84 tornTail=false
+  actual:   COMPILE_ERROR
+H98 incomplete_txn_with_rollback_and_torn_rollback_ignored (hidden)
+  expected: OK state={"b"="1"} committed=[2] aborted=[] incomplete=[1] validLength=93 tornTail=true
+  actual:   COMPILE_ERROR
+H99 prec_no_savepoint_early_checksum_mismatch_later (hidden)
+  expected: ERR CHECKSUM_MISMATCH@23
+  actual:   COMPILE_ERROR
+H100 prec_bad_key_before_txn_too_large (hidden)
+  expected: ERR BAD_KEY@125
+  actual:   COMPILE_ERROR
+H101 rb_without_any_savepoint_is_no_savepoint (hidden)
+  expected: ERR NO_SAVEPOINT@27
+  actual:   COMPILE_ERROR
+
+TOTAL: 0 / 105 passed
