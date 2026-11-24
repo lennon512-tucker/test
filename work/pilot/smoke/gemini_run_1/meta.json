@@ -1,0 +1,11 @@
+{
+  "attempt": 1,
+  "requested_model": "gemini-3.1-pro-preview",
+  "modelVersion": null,
+  "date_utc": "2026-11-24",
+  "http_status": 429,
+  "finishReason": null,
+  "usage": null,
+  "retries": 3,
+  "seconds": 130.9
+}
