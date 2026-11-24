@@ -6,3 +6,4 @@ __pycache__/
 *.zip
 results_new*/
 .env
+.gemini_api_key
