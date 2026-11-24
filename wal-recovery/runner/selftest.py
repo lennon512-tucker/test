@@ -99,5 +99,50 @@ class HarnessCheck(unittest.TestCase):
             self.assertEqual(ln.split(" ")[2], "OK", ln)
 
 
+class OneProviderParse(unittest.TestCase):
+    """SSE assembly and retry rules for runner/oneprovider.py (offline, fake bytes)."""
+
+    def sse(self, *chunks):
+        import json as _j
+        return ("".join("data: %s\n\n" % (c if isinstance(c, str) else _j.dumps(c)) for c in chunks)).encode()
+
+    def test_assemble_excludes_reasoning(self):
+        import oneprovider as op
+        raw = self.sse({"id": "x", "model": "m", "choices": [{"delta": {"role": "assistant"}}]},
+                       {"choices": [{"delta": {"reasoning_content": "think"}}]},
+                       {"choices": [{"delta": {"content": "```java\nclass A {}"}}]},
+                       {"choices": [{"delta": {"content": "\n```"}, "finish_reason": "stop"}]},
+                       {"choices": [], "usage": {"prompt_tokens": 9, "completion_tokens": 3}}, "[DONE]")
+        p = op.parse_stream(raw)
+        self.assertEqual(p["text"], "```java\nclass A {}\n```")
+        self.assertEqual((p["finish_reason"], p["model"], p["reasoning_chars"], p["done"]), ("stop", "m", 5, True))
+        self.assertEqual(p["usage"]["prompt_tokens"], 9)
+        self.assertEqual(extract(p["text"])[0], "class A {}\n")
+
+    def test_stream_error_and_cut(self):
+        import oneprovider as op
+        e = op.parse_stream(self.sse({"choices": [{"delta": {"content": "x"}}]},
+                                     {"type": "error", "error": {"type": "server_error"}}))
+        self.assertIsNotNone(e["error"])
+        self.assertIsNone(op.parse_stream(self.sse({"choices": [{"delta": {"content": "x"}}]}))["finish_reason"])
+
+    def test_retry_rules(self):
+        import oneprovider as op
+        bal = b'{"type":"error","error":{"type":"insufficient_balance","code":"insufficient_quota"}}'
+        rl = b'{"type":"error","error":{"type":"rate_limit_error"}}'
+        self.assertFalse(op._retryable_http(429, bal, {}))
+        self.assertFalse(op._retryable_http(429, rl, {"x-should-retry": "false"}))
+        self.assertTrue(op._retryable_http(429, rl, {}))
+        self.assertTrue(op._retryable_http(503, b"", {}))
+        self.assertFalse(op._retryable_http(400, b"", {}))
+        self.assertFalse(op._retryable_http(401, b"", {}))
+
+    def test_body_has_no_extra_settings(self):
+        import oneprovider as op
+        b = op.build_body("gemini-4-carbon", "hi", 32768)
+        self.assertEqual(sorted(b), ["max_tokens", "messages", "model", "stream", "stream_options"])
+        self.assertEqual(b["messages"], [{"role": "user", "content": "hi"}])
+
+
 if __name__ == "__main__":
     unittest.main()

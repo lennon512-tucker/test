@@ -7,3 +7,4 @@ __pycache__/
 results_new*/
 .env
 .gemini_api_key
+.oneprovider_api_key

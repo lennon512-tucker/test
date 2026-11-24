@@ -1,0 +1,39 @@
+{
+  "attempt": 4,
+  "provider": "OneProvider (https://api.oneprovider.dev/v1/chat/completions)",
+  "requested_model": "gemini-4-carbon",
+  "model_in_response": "gemini-4-carbon",
+  "response_id": "msg_1267042c0b892a5c64489c2d",
+  "date_utc": "2026-11-24",
+  "settings": {
+    "max_tokens": 32768,
+    "stream": true,
+    "other": "none sent (no system message, no sampling settings)"
+  },
+  "http_status": 200,
+  "finish_reason": "stop",
+  "usage": {
+    "prompt_tokens": 11154,
+    "completion_tokens": 4641,
+    "total_tokens": 15795,
+    "prompt_tokens_details": {
+      "cached_tokens": 9100
+    }
+  },
+  "reasoning_chars": 0,
+  "google_count_tokens_of_prompt": 9638,
+  "hidden_prompt_tokens_estimate": 1516,
+  "retries": 0,
+  "gave_up": false,
+  "tries": [
+    {
+      "http_status": 200,
+      "error": null,
+      "retry_reason": null,
+      "x_request_id": "ab1ff268a912f9b12693fee29b12d26e",
+      "seconds": 64.8
+    }
+  ],
+  "seconds": 64.8,
+  "prompt_sha256": "0e9fd629f7b58381cec0d372754103eece21d4593aea8f9a6109bee133542f82"
+}

@@ -71,3 +71,17 @@ def generate(model, text, key=None, timeout=600, waits=(10, 30, 90), sleep=time.
                                   "seconds": round(time.time() - t0, 1), "request_bytes": body}
         sleep(waits[retries])
         retries += 1
+
+
+def count_tokens(model, text, key=None, timeout=60):
+    """Google's exact input-token count for text as one user turn (free; no generation).
+    Used only as a baseline next to a provider's billed prompt_tokens. Returns int or None."""
+    try:
+        key = key or get_key()
+        body = json.dumps(build_body(text), ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request("%s/models/%s:countTokens" % (BASE, model), data=body, method="POST",
+                                     headers={"x-goog-api-key": key, "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read()).get("totalTokens")
+    except BaseException:
+        return None

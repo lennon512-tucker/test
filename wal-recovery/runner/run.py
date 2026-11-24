@@ -4,7 +4,7 @@ import argparse, datetime, hashlib, json, os, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
-import gemini, extract, javatest
+import gemini, oneprovider, extract, javatest
 
 
 def load_config():
@@ -58,6 +58,59 @@ def gemini_attempts(out_dir, n, cfg):
         # TODO (later sessions): test each attempt here (javatest.py) for --fresh.
 
 
+def oneprovider_attempts(out_dir, n, cfg, test=True):
+    """Attempts through OneProvider (OpenAI-compatible, streamed). Per attempt folder: request.json
+    (key not included), response.sse (raw stream), answer.txt (content only, reasoning excluded),
+    WalRecovery.java, extraction.json, meta.json and, with test=True, test_results.json and
+    test_output.txt."""
+    prompt = build_prompt(cfg)
+    os.makedirs(out_dir, exist_ok=True)
+    write(os.path.join(out_dir, "prompt_sent.txt"), prompt)
+    key = oneprovider.get_key()
+    baseline = gemini.count_tokens(cfg["model"], prompt)
+    for k in range(1, n + 1):
+        d = os.path.join(out_dir, "gemini_run_%d" % k)
+        os.makedirs(d, exist_ok=True)
+        raw, parsed, info = oneprovider.generate(cfg["model"], prompt, key, cfg["max_tokens"],
+                                                 cfg["http_timeout_seconds"], tuple(cfg["retry_waits_seconds"]))
+        write(os.path.join(d, "request.json"), info.pop("request_bytes"))
+        write(os.path.join(d, "response.sse" if parsed is not None else "response.json"), raw)
+        parsed = parsed or {}
+        usage = parsed.get("usage") or {}
+        pt = usage.get("prompt_tokens")
+        meta = {"attempt": k, "provider": "OneProvider (https://api.oneprovider.dev/v1/chat/completions)",
+                "requested_model": cfg["model"], "model_in_response": parsed.get("model"),
+                "response_id": parsed.get("id"),
+                "date_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d"),
+                "settings": {"max_tokens": cfg["max_tokens"], "stream": True,
+                             "other": "none sent (no system message, no sampling settings)"},
+                "http_status": info["http_status"], "finish_reason": parsed.get("finish_reason"),
+                "usage": usage or None, "reasoning_chars": parsed.get("reasoning_chars"),
+                "google_count_tokens_of_prompt": baseline,
+                "hidden_prompt_tokens_estimate": (pt - baseline) if (pt is not None and baseline) else None,
+                "retries": info["retries"], "gave_up": info["gave_up"], "tries": info["tries"],
+                "seconds": info["seconds"],
+                "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest()}
+        text = parsed.get("text", "")
+        write(os.path.join(d, "answer.txt"), text)
+        code, ex = extract.extract(text)
+        write(os.path.join(d, "WalRecovery.java"), code)
+        write(os.path.join(d, "extraction.json"), json.dumps(ex, indent=2) + "\n")
+        write(os.path.join(d, "meta.json"), json.dumps(meta, indent=2) + "\n")
+        summ = []
+        if test and text:
+            res = javatest.test_solution(os.path.join(d, "WalRecovery.java"), "op_%s_%d" % (os.path.basename(os.path.abspath(out_dir)), k))
+            lines = []
+            javatest.print_report(res, out=lines.append)
+            write(os.path.join(d, "test_output.txt"), "\n".join(lines) + "\n")
+            res.pop("build_dir", None)
+            write(os.path.join(d, "test_results.json"), json.dumps(res, indent=2) + "\n")
+            summ = [l for l in lines if l.startswith(("public:", "hidden:"))]
+        print("attempt %d: HTTP %s finish=%s model=%s prompt_tokens=%s (baseline %s) out=%s retries=%d rule=%s %s" %
+              (k, meta["http_status"], meta["finish_reason"], meta["model_in_response"], pt, baseline,
+               usage.get("completion_tokens"), info["retries"], ex["rule"], " | ".join(summ)), flush=True)
+
+
 def import_web(out_dir, model, date, mode, cfg):
     """Gemini web app attempts: for each subfolder of out_dir that holds an answer.txt saved by
     hand (copied with the app's copy button), extract the code with the same rule as the API path,
@@ -91,6 +144,13 @@ def import_web(out_dir, model, date, mode, cfg):
         print("%s: rule=%s | %s" % (sub, ex["rule"], " | ".join(summ)))
 
 
+def run_attempts(out_dir, n, cfg):
+    if cfg.get("provider", "google") == "oneprovider":
+        oneprovider_attempts(out_dir, n, cfg)
+    else:
+        gemini_attempts(out_dir, n, cfg)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--models", action="store_true")
@@ -117,11 +177,11 @@ def main():
     elif a.pilot:
         if not a.out:
             ap.error("--pilot needs --out")
-        gemini_attempts(a.out, a.pilot, cfg)
+        run_attempts(a.out, a.pilot, cfg)
     elif a.fresh:
         if not a.out:
             ap.error("--fresh needs --out")
-        gemini_attempts(a.out, a.attempts or cfg["attempts"], cfg)
+        run_attempts(a.out, a.attempts or cfg["attempts"], cfg)
     elif a.test:
         if not os.path.isfile(a.test):
             sys.exit("no such file: %s" % a.test)
