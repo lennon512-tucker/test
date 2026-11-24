@@ -1,0 +1,158 @@
+==== tests/public/PublicTests.java ====
+---- non-test code (comments stripped) ----
+import java.util.ArrayList;
+import java.util.List;
+public final class PublicTests {
+    private PublicTests() {}
+    public static List<TestCase> cases() {
+        List<TestCase> c = new ArrayList<>();
+        c.add(<TEST "P01">);
+        c.add(<TEST "P02">);
+        c.add(<TEST "P03">);
+        return c;
+    }
+}
+---- tests ----
+"P01": Hex.bytes( "57 41 4C 31" + " 01 00 04 00 00 00 01 1C 06" + " 01 00 04 00 00 00 02 1D 07" + " 02 00 09 00 00 00 01 01 61 00 01 31 36 A0" + " 02 00 09 00 00 00 02 01 61 00 01 32 3D A2" + " 02 00 09 00 00 00 02 01 62 00 01 78 87 E9" + " 04 00 04 00 00 00 02 32 0A" + " 01 00 04 00 00 00 03 1E 08" + " 02 00 09 00 00 00 03 01 62 00 01 79 8E EB" + " 04 00 04 00 00 00 01 31 09" + " 05 00 04 00 00 00 03 3A 0C" + " 01 00 04 00 00 00 04 1F 09" + " 03 00 06 00 00 00 04 01 61 B4 6F")
+"P02": Hex.bytes( "57 41 4C 31" + " 01 00 04 00 00 00 01 1C 06" + " 02 00 0D 00 00 00 01 01 78 00 05 68 65 6C 6C 6F F8 A4" + " 04 00 04 00 00 00 01 31 09" + " 01 00 04 00 00 00 02 1D 07" + " 02 00 0B 00 00 00 02 01 78 00 03 62 79 65 16 CC" + " 04 00 04 00 00 00")
+"P03": Hex.bytes( "57 41 4C 31" + " 01 00 04 00 00 00 01 1C 06" + " 02 00 09 00 00 00 01 01 6B 00 01 77 A3 EF" + " 04 00 04 00 00 00 01 31 09")
+
+==== tests/hidden/HiddenTests.java ====
+---- non-test code (comments stripped) ----
+import java.util.ArrayList;
+import java.util.List;
+public final class HiddenTests {
+    private HiddenTests() {}
+    public static List<TestCase> cases() {
+        List<TestCase> c = new ArrayList<>();
+        c.add(<TEST "H01">);
+        c.add(<TEST "H02">);
+        c.add(<TEST "H03">);
+        c.add(<TEST "H04">);
+        c.add(<TEST "H05">);
+        c.add(<TEST "H06">);
+        c.add(<TEST "H07">);
+        c.add(<TEST "H08">);
+        c.add(<TEST "H09">);
+        c.add(<TEST "H10">);
+        c.add(<TEST "H11">);
+        c.add(<TEST "H12">);
+        c.add(<TEST "H13">);
+        c.add(<TEST "H14">);
+        c.add(<TEST "H15">);
+        c.add(<TEST "H16">);
+        c.add(<TEST "H17">);
+        c.add(<TEST "H18">);
+        c.add(<TEST "H19">);
+        c.add(<TEST "H20">);
+        c.add(<TEST "H21">);
+        c.add(<TEST "H22">);
+        c.add(<TEST "H23">);
+        c.add(<TEST "H24">);
+        c.add(<TEST "H25">);
+        c.add(<TEST "H26">);
+        c.add(<TEST "H27">);
+        c.add(<TEST "H28">);
+        c.add(<TEST "H29">);
+        c.add(<TEST "H30">);
+        c.add(<TEST "H31">);
+        c.add(<TEST "H32">);
+        c.add(<TEST "H33">);
+        c.add(<TEST "H34">);
+        c.add(<TEST "H35">);
+        c.add(<TEST "H36">);
+        c.add(<TEST "H37">);
+        c.add(<TEST "H38">);
+        c.add(<TEST "H39">);
+        c.add(<TEST "H40">);
+        c.add(<TEST "H41">);
+        c.add(<TEST "H42">);
+        c.add(<TEST "H43">);
+        c.add(<TEST "H44">);
+        c.add(<TEST "H45">);
+        c.add(<TEST "H46">);
+        c.add(<TEST "H47">);
+        c.add(<TEST "H48">);
+        c.add(<TEST "H49">);
+        c.add(<TEST "H50">);
+        c.add(<TEST "H51">);
+        c.add(<TEST "H52">);
+        c.add(<TEST "H53">);
+        c.add(<TEST "H54">);
+        c.add(<TEST "H55">);
+        c.add(<TEST "H56">);
+        c.add(<TEST "H57">);
+        c.add(<TEST "H58">);
+        c.add(<TEST "H59">);
+        c.add(<TEST "H60">);
+        c.add(<TEST "H61">);
+        c.add(<TEST "H62">);
+        c.add(<TEST "H63">);
+        return c;
+    }
+}
+---- tests ----
+"H01": LogBuilder.raw().build()
+"H02": LogBuilder.wal().build()
+"H03": LogBuilder.raw().bytes(0x57).build()
+"H04": LogBuilder.raw().bytes(0x57, 0x41).build()
+"H05": LogBuilder.raw().bytes(0x57, 0x41, 0x58).build()
+"H06": LogBuilder.raw().bytes(0x57, 0x41, 0x4C, 0x32).begin(1).commit(1).build()
+"H07": LogBuilder.wal().begin(1).commit(1).bytes(0x04).build()
+"H08": LogBuilder.wal().begin(1).bytes(0x09, 0x00).build()
+"H09": LogBuilder.wal().begin(1).bytes(0x09, 0x00, 0x00).build()
+"H10": LogBuilder.wal().begin(1).record(0, Hex.bytes("00 00 00 01")).commit(1).build()
+"H11": LogBuilder.wal().record(6, Hex.bytes("00 00 00 01")).begin(1).build()
+"H12": LogBuilder.wal().begin(1).put(1, "a", "1").commit(1).begin(2).put(2, "b", "2") .truncate(5).build()
+"H13": LogBuilder.wal().begin(1).put(1, "k", "v").commit(1).corruptLastChecksum().build()
+"H14": LogBuilder.wal().begin(1).put(1, "k", "v").commit(1).corruptLastChecksum() .bytes(0x00).build()
+"H15": LogBuilder.wal().begin(1).begin(2).put(2, "x", "y").corruptLastChecksum() .commit(2).commit(1).build()
+"H16": LogBuilder.wal().begin(1).put(1, "k", "a".repeat(1017)).commit(1).build()
+"H17": LogBuilder.wal().begin(1).put(1, "k", "a".repeat(1016)).put(1, "k", "ok").commit(1) .build()
+"H18": LogBuilder.wal().begin(1).record(2, new byte[0x8001]).commit(1).build()
+"H19": LogBuilder.wal().begin(1).bytes(0x02, 0x07, 0xD0, 0x00, 0x00, 0x00, 0x01, 0x01, 0x6B) .build()
+"H20": LogBuilder.wal().begin(1).frame(7, 4, Hex.bytes("00 00 00 01"), 0x0000).build()
+"H21": LogBuilder.wal().begin(1) .frame(2, 9, Hex.bytes("00 00 00 01 01 61 00 01 31"), 0xC395) .commit(1).build()
+"H22": LogBuilder.wal().begin(4294967295L).put(4294967295L, "k", "v").abort(4294967295L) .build()
+"H23": LogBuilder.wal().begin(1).put(1, "v", "x".repeat(192)).del(1, "v").put(1, "n", "200") .commit(1).build()
+"H24": LogBuilder.wal().frame(1, 4, Hex.bytes("00 00 00 01"), 0x061C).begin(2).build()
+"H25": LogBuilder.wal().begin(1).record(1, Hex.bytes("00 00 02")).commit(1).build()
+"H26": LogBuilder.wal().record(1, Hex.bytes("00 00 00 01 00")).commit(1).build()
+"H27": LogBuilder.wal().begin(1).record(2, Hex.bytes("00 00 00 01 05 61 62 63")).commit(1) .build()
+"H28": LogBuilder.wal().begin(1).record(2, Hex.bytes("00 00 00 01 01 61 00")).commit(1) .build()
+"H29": LogBuilder.wal().begin(1).record(2, Hex.bytes("00 00 00 01 01 61 00 01 31 32")) .commit(1).build()
+"H30": LogBuilder.wal().begin(1).record(3, Hex.bytes("00 00 00 01")).commit(1).build()
+"H31": LogBuilder.wal().begin(1).record(4, new byte[0]).begin(2).build()
+"H32": LogBuilder.wal().begin(0).commit(0).build()
+"H33": LogBuilder.wal().begin(1).put(1, "", "1").commit(1).build()
+"H34": LogBuilder.wal().begin(1).put(1, "!abcdefghijklmnopqrstuvwxyz0123~", "1").commit(1) .build()
+"H35": LogBuilder.wal().begin(1).put(1, "abcdefghijklmnopqrstuvwxyz0123456", "1").commit(1) .build()
+"H36": LogBuilder.wal().begin(1).put(1, "a b", "1").commit(1).build()
+"H37": LogBuilder.wal().begin(1).put(1, "a", "1").del(1, "a\u007F").commit(1).build()
+"H38": LogBuilder.wal().begin(1).put(1, "v", " ~").commit(1).build()
+"H39": LogBuilder.wal().begin(1).put(1, "v", "a\u001F").commit(1).build()
+"H40": LogBuilder.wal().begin(1).put(1, "a", "1").put(1, "b", "x\u007F").commit(1).build()
+"H41": LogBuilder.wal().begin(7).begin(3).put(3, "k", "b").put(7, "k", "a").put(3, "m", "1") .commit(7).commit(3).build()
+"H42": LogBuilder.wal().begin(1).put(1, "a", "1").commit(1).begin(2).put(2, "a", "2") .put(2, "b", "2").abort(2).begin(3).commit(3).build()
+"H43": LogBuilder.wal().begin(4294967295L).begin(5).begin(2147483648L).begin(2147483647L) .build()
+"H44": LogBuilder.wal().begin(1).begin(2).begin(1).build()
+"H45": LogBuilder.wal().begin(1).put(1, "a", "1").commit(1).begin(1).commit(1).build()
+"H46": LogBuilder.wal().begin(1).commit(1).put(1, "a", "1").build()
+"H47": LogBuilder.wal().begin(1).begin(2).begin(3).begin(4).begin(5).build()
+"H48": LogBuilder.wal().begin(1).begin(2).begin(3).begin(4).commit(2).begin(5).build()
+"H49": LogBuilder.wal().begin(1).begin(2).begin(3).begin(4).abort(3).begin(5).begin(6) .build()
+"H50": LogBuilder.wal().begin(1).put(1, "x", "1").begin(2).del(2, "x").del(2, "y").commit(2) .commit(1).build()
+"H51": LogBuilder.wal().begin(1).put(1, "a", "1").put(1, "b", "2").del(1, "a").put(1, "b", "") .commit(1).build()
+"H52": LogBuilder.wal().begin(4294967295L).begin(1).put(4294967295L, "max", "u32") .commit(4294967295L).build()
+"H53": LogBuilder.wal().begin(0).begin(1).put(1, "k", "v").corruptLastChecksum().commit(1) .build()
+"H54": LogBuilder.wal().begin(1).record(4, new byte[0]).put(1, "k", "a".repeat(1017)) .commit(1).build()
+"H55": LogBuilder.wal().begin(1).put(0, "a b", "1").commit(1).build()
+"H56": LogBuilder.wal().begin(1).put(2, "\u00E9", "1").commit(1).build()
+"H57": LogBuilder.wal().begin(5).abort(5).begin(1).begin(2).begin(3).begin(4).begin(5) .build()
+"H58": LogBuilder.wal().begin(1).begin(2).put(2, "a", "2").commit(1).commit(2).truncate(1) .build()
+"H59": LogBuilder.wal().begin(1).abort(2).begin(3).bytes(0x01, 0x00).build()
+"H60": LogBuilder.wal().begin(1).put(1, "a", "1").commit(1).put(0, "a b", "\u0001") .corruptLastChecksum().build()
+"H61": LogBuilder.wal().begin(1).commit(2).put(1, "v", "\u007F").commit(1).build()
+"H62": LogBuilder.wal().begin(4294967295L).begin(2).put(4294967295L, "k", "v x") .put(2, "a", "").del(2, "k").commit(2).begin(3).put(3, "z", "~").abort(3) .commit(4294967295L).begin(200).put(200, "q", "1").truncate(4).build()
+"H63": NULL INPUT (TestCase.ofNull)
+

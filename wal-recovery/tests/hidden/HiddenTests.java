@@ -19,7 +19,8 @@ import java.util.List;
  *
  * Groups: A header (H01-H06), B framing and tail (H07-H20), C checksum details (H21-H24),
  * D payload structure (H25-H31), E field checks (H32-H40), F transactions (H41-H52),
- * G precedence and interactions (H53-H61), H API contract (H62-H63).
+ * G precedence and interactions (H53-H61), H API contract (H62-H63),
+ * I coverage gaps found by the P7 audit (H64-H69).
  */
 public final class HiddenTests {
     private HiddenTests() {}
@@ -1220,6 +1221,120 @@ public final class HiddenTests {
         // Expected: THROW java.lang.NullPointerException
         c.add(TestCase.ofNull("H63", "api_null_input", "R1",
                 "THROW java.lang.NullPointerException"));
+
+        // =====================================================================================
+        // Group I: added by the P7 audit to close coverage gaps (work/notes/test-audit.md).
+        // H64 belongs with group A, H65 and H67 with D, H66 with B, H68 and H69 with G.
+        // Checksums of the new short records (covered bytes, s1 and s2 traces, stored s2 s1):
+        //   DELETE N=7 k=1 +1  03 00 07 00 00 00 01 01 61 62  s1 3,3,10,10,10,10,11,12,109,207
+        //                s2 3,6,16,26,36,46,57,69,178,130 -> 82 CF
+        //   PUT N=9 v=2  02 00 09 00 00 00 01 01 61 00 02 31  s1 2,2,11,11,11,11,12,13,110,110,112,161
+        //                s2 2,4,15,26,37,48,60,73,183,38,150,56 -> 38 A1
+        //   PUT 9 a=0A   02 00 09 00 00 00 09 01 61 00 01 0A  s1 2,2,11,11,11,11,20,21,118,118,119,129
+        //                s2 2,4,15,26,37,48,68,89,207,70,189,63 -> 3F 81
+        // =====================================================================================
+
+        // H64 header_partial_magic_three_bytes_is_torn
+        // Rules: R3
+        // Derivation:
+        //   1. Bytes 57 41 4C, L = 3. R1 (not null) and R2 (L = 0) do not apply.
+        //   2. R3: L = 3; the first 3 bytes of MAGIC are 57 41 4C, and the 3 bytes equal them ->
+        //      the empty result with validLength = 0, tornTail = true. (This is the largest L
+        //      for R3; H05 is the same length with a wrong third byte, H02 is L = 4.)
+        // Expected: OK state={} committed=[] aborted=[] incomplete=[] validLength=0 tornTail=true
+        c.add(TestCase.of("H64", "header_partial_magic_three_bytes_is_torn", "R3",
+                LogBuilder.raw().bytes(0x57, 0x41, 0x4C).build(),
+                "OK state={} committed=[] aborted=[] incomplete=[] validLength=0 tornTail=true"));
+
+        // H65 payload_delete_one_extra_byte_is_malformed
+        // Rules: R13 (DELETE: N = 5 + k exactly)
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). PUT 1 "a"="1" @13, N = 9, size 14,
+        //      ends 27 (36 A0).
+        //      Record @27: type 03, N = 7, payload 00 00 00 01 01 61 62 (DELETE 1 "a" plus one
+        //      byte 62), size 12, ends 39, correct checksum 82 CF (table above).
+        //      COMMIT 1 @39, ends 48 (31 09). L = 48.
+        //   2. Phase 1: p = 4, 13 intact; p = 27: R6 L-p = 21; R7 type 3; R8 N = 7; R9 39 <= 48;
+        //      R10 correct -> intact; p = 39 intact; p = 48 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens. PUT @13 passes R13-R16, R19 -> write a=1.
+        //      DELETE @27: R13 N = 7 >= 5; k = payload byte 4 = 01 = 1; N = 5 + k = 6? 7 != 6
+        //      -> throw MALFORMED_PAYLOAD at 27.
+        //   (Ignoring the extra byte would delete "a" and give OK state={} committed=[1].)
+        // Expected: ERR MALFORMED_PAYLOAD@27
+        c.add(TestCase.of("H65", "payload_delete_one_extra_byte_is_malformed", "R13",
+                LogBuilder.wal().begin(1).put(1, "a", "1").record(3, Hex.bytes("00 00 00 01 01 61 62"))
+                        .commit(1).build(),
+                "ERR MALFORMED_PAYLOAD@27"));
+
+        // H66 frame_too_large_last_record_bad_checksum_ends_at_L_is_error
+        // Rules: R8, R10
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06).
+        //      PUT 1 "k" = 1017 x "a" @13: N = 7+1+1017 = 1025 (N bytes 04 01), size 1030,
+        //      ends 1043 (the same bytes as H16's record @13), and corruptLastChecksum() makes
+        //      its stored checksum wrong. Nothing follows it. L = 1043.
+        //   2. p = 4: intact, p = 13.
+        //   3. p = 13: R5 13 != 1043; R6 L-p = 1030; R7 type 2; R8 N = 1025 > MAX_PAYLOAD 1024
+        //      -> throw RECORD_TOO_LARGE at 13. R8 comes before R9 and R10, so the torn tail
+        //      that R10 would give (wrong checksum, 13+5+1025 = 1043 = L) is never reached
+        //      (section 7.2: "R7 and R8 apply to every record with at least 3 bytes left at p,
+        //      including ... a last record whose checksum is wrong (R10)").
+        // Expected: ERR RECORD_TOO_LARGE@13
+        c.add(TestCase.of("H66", "frame_too_large_last_record_bad_checksum_ends_at_L_is_error", "R8,R10",
+                LogBuilder.wal().begin(1).put(1, "k", "a".repeat(1017)).corruptLastChecksum().build(),
+                "ERR RECORD_TOO_LARGE@13"));
+
+        // H67 payload_put_value_cut_short_is_malformed
+        // Rules: R13 (PUT: N = 7 + k + v exactly; the side N < 7 + k + v)
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06).
+        //      Record @13: type 02, N = 9, payload 00 00 00 01 01 61 00 02 31 (txn 1, k = 1,
+        //      key 61, v = 00 02 = 2, but only 1 value byte 31), size 14, ends 27, correct
+        //      checksum 38 A1 (table above). COMMIT 1 @27, ends 36 (31 09). L = 36.
+        //   2. Phase 1: p = 4 intact; p = 13: R6 L-p = 23; R7 type 2; R8 N = 9; R9 27 <= 36;
+        //      R10 correct -> intact; p = 27 intact; p = 36 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens. PUT @13: R13 N = 9 >= 5; k = 1; N >= 7 + 1 = 8 ok;
+        //      v = u16 at payload byte 6 = 00 02 = 2; N = 7 + 1 + 2 = 10? 9 != 10 -> throw
+        //      MALFORMED_PAYLOAD at 13. (H29 is the other side: one byte too many.)
+        // Expected: ERR MALFORMED_PAYLOAD@13
+        c.add(TestCase.of("H67", "payload_put_value_cut_short_is_malformed", "R13",
+                LogBuilder.wal().begin(1).record(2, Hex.bytes("00 00 00 01 01 61 00 02 31")).commit(1)
+                        .build(),
+                "ERR MALFORMED_PAYLOAD@13"));
+
+        // H68 prec_bad_txn_id_before_too_many_open
+        // Rules: P4, R14, R18
+        // Derivation:
+        //   1. Header ok. BEGIN 1, 2, 3, 4 @4, 13, 22, 31 (1C 06, 1D 07, 1E 08, 1F 09).
+        //      BEGIN 0 @40, ends 49 (1B 05). L = 49.
+        //   2. Phase 1: all 5 intact; p = 49 = L (R5).
+        //   3. Phase 2: BEGIN 1-4 open, with 0, 1, 2, 3 open before each. BEGIN @40 has two
+        //      problems: txn 0 (R14) and 4 = MAX_OPEN_TXNS transactions open (R18).
+        //      R13 N = 4 ok; R14 txn = 0 -> throw BAD_TXN_ID at 40.
+        //   4. Deciding rule P4: "Within one record, the first failing check in the order R13,
+        //      R14, R15, R16, R17, R18, R19 decides the code, so the field checks (R13 to R16)
+        //      always come before the transaction checks (R17 to R19)".
+        // Expected: ERR BAD_TXN_ID@40
+        c.add(TestCase.of("H68", "prec_bad_txn_id_before_too_many_open", "P4,R14,R18",
+                LogBuilder.wal().begin(1).begin(2).begin(3).begin(4).begin(0).build(),
+                "ERR BAD_TXN_ID@40"));
+
+        // H69 prec_bad_value_before_txn_not_open
+        // Rules: P4, R16, R19
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06).
+        //      PUT txn 9 "a" = byte 0A @13: N = 7+1+1 = 9, size 14, ends 27 (3F 81, table
+        //      above). COMMIT 1 @27, ends 36 (31 09). L = 36.
+        //   2. Phase 1: all intact; p = 36 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens. PUT @13 has two problems: value byte 0A (R16) and txn 9,
+        //      which never had a BEGIN (R19). R13 9 = 7+1+1 ok; R14 txn 9 != 0; R15 key 61 ok;
+        //      R16 value byte 0A < VALUE_BYTE_MIN 20 -> throw BAD_VALUE at 13.
+        //   4. Deciding rule P4: "the field checks (R13 to R16) always come before the
+        //      transaction checks (R17 to R19)".
+        // Expected: ERR BAD_VALUE@13
+        c.add(TestCase.of("H69", "prec_bad_value_before_txn_not_open", "P4,R16,R19",
+                LogBuilder.wal().begin(1).put(9, "a", "\n").commit(1).build(),
+                "ERR BAD_VALUE@13"));
 
         return c;
     }

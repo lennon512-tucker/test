@@ -4,9 +4,9 @@ Rule numbers are those of task/PROMPT.md (DRAFT v2): R1-R27, precedence P1-P5, "
 Traps T1-T17 are PLAN.md section 4.6.
 "Main" means the test was built to check that rule; "also" means the rule is exercised on the way (for example, R13 on a well-formed record) but is not what the test is about.
 
-Status: P5 wrote groups A-C (H01-H24). P6 wrote groups D-H (H25-H63). Total: 63 hidden tests.
+Status: P5 wrote groups A-C (H01-H24). P6 wrote groups D-H (H25-H63). P7 (audit) added group I (H64-H69) to close coverage gaps. Total: 69 hidden tests.
 
-Groups: A header H01-H06, B framing and tail H07-H20, C checksum details H21-H24, D payload structure H25-H31, E field checks H32-H40, F transactions H41-H52, G precedence and interactions H53-H61, H API contract H62-H63.
+Groups: A header H01-H06, B framing and tail H07-H20, C checksum details H21-H24, D payload structure H25-H31, E field checks H32-H40, F transactions H41-H52, G precedence and interactions H53-H61, H API contract H62-H63, I P7 coverage gaps H64-H69 (H64 header, H65/H67 payload, H66 framing, H68/H69 precedence).
 
 ## PROMPT.md rule -> tests
 
@@ -14,23 +14,23 @@ Groups: A header H01-H06, B framing and tail H07-H20, C checksum details H21-H24
 |---|---|---|---|
 | R1 null input | H63 | | TestCase.ofNull, expects THROW java.lang.NullPointerException |
 | R2 L = 0 | H01 | | |
-| R3 L = 1..3 | H03, H04, H05 | | H03/H04 torn branch, H05 BAD_MAGIC branch |
+| R3 L = 1..3 | H03, H04, H05, H64 | | H03/H04/H64 torn branch (L = 1, 2, 3), H05 BAD_MAGIC branch |
 | R4 magic, L >= 4 | H06 | H02 | H06: only byte 3 wrong ("WAL2") |
 | R5 p = L | H02 | H17, H22, H23, most of H25-H57 | |
 | R6 1 or 2 bytes left | H07, H08 | H09 (3 bytes: R6 does not apply), H59 | |
 | R7 unknown type | H09, H10, H11, H20 | | types 9, 0, 6, 7 |
-| R8 N > 1024 | H16, H18, H19, H54 | H17 (N = 1024 ok), H23 (N = 200 ok) | |
+| R8 N > 1024 | H16, H18, H19, H54, H66 | H17 (N = 1024 ok), H23 (N = 200 ok) | H66: R8 before R10 on the last record |
 | R9 does not fit | H12, H58 | H19 (R8 wins), H62 | |
-| R10 checksum | H13, H14, H15, H21, H24, H53 | H20 (R7 wins), H22, H23, H60 | |
+| R10 checksum | H13, H14, H15, H21, H24, H53 | H20 (R7 wins), H66 (R8 wins), H22, H23, H60 | |
 | R11 intact | H25, H26 | H17, H22, H23 and every OK test | H25/H26: malformed payloads pass phase 1 |
 | R12 torn tail | H07, H08, H12, H13 | H58, H59, H60, H62 | |
-| R13 payload layout | H25-H31 | H33, H35, H51 (v = 0), H54 (not a phase-1 check) | BEGIN N=3/5, PUT key past end, PUT N = 6+k, PUT extra byte, DELETE N=4, COMMIT N=0 |
-| R14 txn 0 | H32, H55 | H52 (txn 4294967295 ok), every test with txn 1 | |
+| R13 payload layout | H25-H31, H65, H67 | H33, H35, H51 (v = 0), H54 (not a phase-1 check) | BEGIN N=3/5, PUT key past end, PUT N = 6+k, PUT extra byte, PUT value one byte short (H67), DELETE N=4, DELETE extra byte (H65), COMMIT N=0 |
+| R14 txn 0 | H32, H55, H68 | H52 (txn 4294967295 ok), every test with txn 1 | |
 | R15 key | H33, H35, H36, H37, H56 | H34 (k = 32, bytes 21 and 7E ok) | k = 0, k = 33, byte 20, byte 7F (DELETE), byte E9 |
-| R16 value | H39, H40 | H38 (bytes 20 and 7E ok), H51/H62 (v = 0), H61 (not reached) | |
+| R16 value | H39, H40, H69 | H38 (bytes 20 and 7E ok), H51/H62 (v = 0), H61 (not reached) | |
 | R17 duplicate id | H44, H45, H57 | | open, committed, aborted id |
-| R18 open limit | H47, H49 | H43, H48 (4 open ok), H57 (R17 wins) | |
-| R19 open check | H46, H59, H61 | H55, H56 (field check wins) | after commit; never begun (ABORT, COMMIT) |
+| R18 open limit | H47, H49 | H43, H48 (4 open ok), H57 (R17 wins), H68 (R14 wins) | |
+| R19 open check | H46, H59, H61 | H55, H56, H69 (field check wins) | after commit; never begun (ABORT, COMMIT) |
 | R20 BEGIN | | every OK test | |
 | R21 write list | H17, H41, H51 | H23, H62 | |
 | R22 COMMIT apply | H17, H23, H41, H50, H51 | H07, H12, H42, H52, H62 | |
@@ -42,7 +42,7 @@ Groups: A header H01-H06, B framing and tail H07-H20, C checksum details H21-H24
 | P1 header first | H05, H06 | | |
 | P2 phase 1 beats phase 2 | H53, H54 | | BAD_TXN_ID vs CHECKSUM_MISMATCH; MALFORMED_PAYLOAD vs RECORD_TOO_LARGE |
 | P3 phase 1 stops at first problem | H15 | | |
-| P4 phase-2 order | H55, H56, H57, H61 | | R14 before R15; R15 before R19; R17 before R18; first record beats check order |
+| P4 phase-2 order | H55, H56, H57, H61, H68, H69 | | R14 before R15; R15 before R19; R17 before R18; first record beats check order; R14 before R18 (H68); R16 before R19 (H69) |
 | P5 torn tail not checked | H08, H13, H58, H60 | H59 (error before a torn tail is thrown) | |
 | Section 2 input not modified | H62 | harness check on every test | |
 | Not errors 1 (DELETE missing key) | H50 | H62 | |
@@ -61,48 +61,49 @@ Groups: A header H01-H06, B framing and tail H07-H20, C checksum details H21-H24
 |---|---|---|
 | BAD_MAGIC | H05, H06 | 2 |
 | UNKNOWN_TYPE | H09, H10, H11, H20 | 4 |
-| RECORD_TOO_LARGE | H16, H18, H19, H54 | 4 |
+| RECORD_TOO_LARGE | H16, H18, H19, H54, H66 | 5 |
 | CHECKSUM_MISMATCH | H14, H15, H21, H24, H53 | 5 |
-| MALFORMED_PAYLOAD | H25, H26, H27, H28, H29, H30, H31 | 7 |
-| BAD_TXN_ID | H32, H55 | 2 |
+| MALFORMED_PAYLOAD | H25, H26, H27, H28, H29, H30, H31, H65, H67 | 9 |
+| BAD_TXN_ID | H32, H55, H68 | 3 |
 | BAD_KEY | H33, H35, H36, H37, H56 | 5 |
-| BAD_VALUE | H39, H40 | 2 |
+| BAD_VALUE | H39, H40, H69 | 3 |
 | DUPLICATE_TXN | H44, H45, H57 | 3 |
 | TOO_MANY_OPEN | H47, H49 | 2 |
 | TXN_NOT_OPEN | H46, H59, H61 | 3 |
 | THROW java.lang.NullPointerException (not a Code) | H63 | 1 |
-| OK (normal result) | H01-H04, H07, H08, H12, H13, H17, H22, H23, H34, H38, H41-H43, H48, H50-H52, H58, H60, H62 | 23 |
+| OK (normal result) | H01-H04, H07, H08, H12, H13, H17, H22, H23, H34, H38, H41-H43, H48, H50-H52, H58, H60, H62, H64 | 24 |
 
-Total 2+4+4+5+7+2+5+2+3+2+3+1+23 = 63.
+Total 2+4+5+5+9+3+5+3+3+2+3+1+24 = 69.
 
 ## Limits -> tests (both sides)
 
 | Limit | Allowed side | Rejected side |
 |---|---|---|
-| MAX_PAYLOAD 1024 | H17 (N = 1024) | H16 (N = 1025), H18 (N = 32769) |
-| MIN_TXN_ID 1 | every test with txn 1 | H32, H55 (txn 0) |
+| MAX_PAYLOAD 1024 | H17 (N = 1024) | H16 (N = 1025), H18 (N = 32769), H66 (N = 1025, last record) |
+| MIN_TXN_ID 1 | every test with txn 1 | H32, H55, H68 (txn 0) |
 | MAX_TXN_ID 4294967295 | H22, H52, H43, H62 | none possible (largest u32) |
 | MIN_KEY_LEN 1 | every 1-byte key | H33 (k = 0) |
 | MAX_KEY_LEN 32 | H34 (k = 32) | H35 (k = 33) |
 | KEY_BYTE_MIN 0x21 | H34 (byte 21) | H36 (byte 20) |
 | KEY_BYTE_MAX 0x7E | H34 (byte 7E) | H37 (byte 7F), H56 (byte E9) |
-| VALUE_BYTE_MIN 0x20 | H38 (byte 20), H62 | H39 (byte 1F) |
+| VALUE_BYTE_MIN 0x20 | H38 (byte 20), H62 | H39 (byte 1F), H69 (byte 0A) |
 | VALUE_BYTE_MAX 0x7E | H38 (byte 7E), H62 | H40 (byte 7F) |
 | value length 0 | H51, H62 (v = 0 ok) | no lower limit |
 | MAX_OPEN_TXNS 4 | H43, H48 (4 open) | H47, H49 (5th BEGIN) |
 | R6 leftover bytes | H07 (1), H08 (2) torn | H09 (3) checked |
 | R10 end at L | H13 (= L, torn) | H14 (L - 1, mismatch) |
-| R3 partial magic | H03, H04 (prefix) | H05 (not a prefix) |
+| R3 partial magic | H03, H04, H64 (prefix, L = 1, 2, 3) | H05 (not a prefix) |
 | R13 N >= 7 + k | H29 and all PUTs (N >= 7 + k) | H28 (N = 6 + k), H27 (key past end) |
-| R13 N = 7 + k + v | all well-formed PUTs | H29 (one extra byte) |
+| R13 N = 7 + k + v | all well-formed PUTs | H29 (one extra byte), H67 (one byte short) |
+| R13 DELETE N = 5 + k | H37, H50, H51, H62 | H30 (N = 4), H65 (one extra byte) |
 
 ## PLAN.md 4.6 trap -> tests
 
 | Trap | Tests | Notes |
 |---|---|---|
 | T1 two-phase precedence | H53, H54 | P2 quoted in both derivations |
-| T2 MALFORMED_PAYLOAD is phase 2 | H25-H31, H54 | H25-H31: malformed records are intact in phase 1 and the error comes from R13; H54: a phase-1 error later beats the earlier malformed record |
-| T3 R7/R8 beat R9/R10, even on the last record | H19 (R8 beats R9), H20 (R7 beats R10) | |
+| T2 MALFORMED_PAYLOAD is phase 2 | H25-H31, H54, H65, H67 | H25-H31: malformed records are intact in phase 1 and the error comes from R13; H54: a phase-1 error later beats the earlier malformed record |
+| T3 R7/R8 beat R9/R10, even on the last record | H19 (R8 beats R9), H20 (R7 beats R10), H09 (R7 beats R9), H66 (R8 beats R10) | |
 | T4 R6 boundary: 2 bytes torn, 3 bytes checked | H08 (2 bytes), H09 (3 bytes), H07 (1 byte) | |
 | T5 R10 boundary: ends at L torn, L+1 mismatch | H13, H14 | |
 | T6 checksum covers type and N; bytes unsigned | H21 (payload only), H22 (FF bytes), H23 (C8/C0 bytes), H24 (s1/s2 order) | |
@@ -110,10 +111,10 @@ Total 2+4+4+5+7+2+5+2+3+2+3+1+23 = 63.
 | T8 N >= 32768 unsigned | H18 (N = 0x8001) | H19 has N = 2000 |
 | T9 commit order, not log order | H41, H50 | H17, H23: write-list order inside one txn |
 | T10 DUPLICATE_TXN on finished ids; before TOO_MANY_OPEN | H45 (committed id), H57 (aborted id, and R17 before R18) | H44: open id |
-| T11 field checks before transaction checks | H55 (R14 before R15/R19), H56 (R15 before R19) | H61 is the other direction (an earlier record with a transaction error beats a later record with a field error) |
-| T12 key/value byte ranges and lengths | H33, H34, H35, H36, H37, H38, H39, H40 | H56 (key byte E9) |
+| T11 field checks before transaction checks | H55 (R14 before R15/R19), H56 (R15 before R19), H69 (R16 before R19), H68 (R14 before R18) | H61 is the other direction (an earlier record with a transaction error beats a later record with a field error) |
+| T12 key/value byte ranges and lengths | H33, H34, H35, H36, H37, H38, H39, H40 | H56 (key byte E9), H69 (value byte 0A) |
 | T13 4-open limit, slot freed | H47 (5th fails), H48 (COMMIT frees a slot), H49 (ABORT frees one slot only) | H43: exactly 4 open |
-| T14 partial magic | H03, H04, H05 | |
+| T14 partial magic | H03, H04, H05, H64 | |
 | T15 empty vs header only | H01, H02 | |
 | T16 input not modified; null input | H62 (content-rich log), H63 (null) | the harness checks INPUT_MODIFIED on every test |
 | T17 incomplete sorted unsigned | H43 | |
@@ -156,3 +157,10 @@ Total 2+4+4+5+7+2+5+2+3+2+3+1+23 = 63.
 - work/scratch/p6_inputs/DumpInputs.java: prints L and hex of each input from H25 on (no decoding). Every L and every quoted stored byte (H53 A2 EE, H60 2A F4, H58/H62 truncated tails) matched the derivations.
 - A one-off text check that each "// Expected:" comment equals the literal in its TestCase (63 checked, 0 mismatches). It compares two hand-written strings; it computes nothing.
 
+
+## P7 audit (2026-11-24)
+
+- Independent audit in work/notes/test-audit.md: every test (P01-P03, H01-H63) re-derived by hand from a stripped view (id + input code only) before any expected line was read. 66 of 66 agree; no expected line or derivation changed.
+- The three wording points above (R17 aborted id, R18 "does not count", P5 second sentence) were assessed as clear; PROMPT.md unchanged.
+- Group I added (H64-H69) for gaps: R3 torn at L = 3 (H64); R13 DELETE N = 5 + k failing side (H65); R8 before R10 on the last record, T3 (H66); R13 PUT value one byte short (H67); R14 before R18 on a BEGIN, T11 (H68); R16 before R19, T11 (H69).
+- Public tests P01-P03 now carry a short derivation comment (bytes and expected lines unchanged).
