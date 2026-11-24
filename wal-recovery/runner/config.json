@@ -2,7 +2,7 @@
   "provider": "oneprovider",
   "model": "gemini-4-carbon",
   "model_chosen_on": "2026-11-24",
-  "model_note": "User choice 2026-11-24: Gemini 4 Carbon via OneProvider (OpenAI-compatible). Earlier Google-API choice gemini-3.1-pro-preview is blocked by free-tier quota 0.",
+  "model_note": "Deviation from brief 4.2, chosen by the submitter on 2026-11-24: Gemini 4 Carbon (gemini-4-carbon, the newest Gemini generation) through OneProvider, an OpenAI-compatible gateway, because the Gemini API key is on the Free Tier where the newest Pro model (gemini-3.1-pro-preview) has quota 0 (HTTP 429). Carbon is not named Pro. The gateway does not return an exact model version and may add its own system text (hidden_prompt_tokens_estimate in attempt_meta). Only non-default setting: max_tokens 32768 (set to the model's own output maximum, so it does not limit the answer).",
   "max_tokens": 32768,
   "wrapper": "Implement the following task. Return the complete code in one file and nothing else.",
   "attempts": 5,

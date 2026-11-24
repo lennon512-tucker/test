@@ -1,0 +1,199 @@
+{
+  "task": "WAL crash recovery (Java 21)",
+  "model": {
+    "requested": "gemini-4-carbon",
+    "as_returned": [
+      "gemini-4-carbon"
+    ],
+    "provider": "oneprovider",
+    "note": "Deviation from brief 4.2, chosen by the submitter on 2026-11-24: Gemini 4 Carbon (gemini-4-carbon, the newest Gemini generation) through OneProvider, an OpenAI-compatible gateway, because the Gemini API key is on the Free Tier where the newest Pro model (gemini-3.1-pro-preview) has quota 0 (HTTP 429). Carbon is not named Pro. The gateway does not return an exact model version and may add its own system text (hidden_prompt_tokens_estimate in attempt_meta). Only non-default setting: max_tokens 32768 (set to the model's own output maximum, so it does not limit the answer)."
+  },
+  "date_utc": [
+    "2026-11-24"
+  ],
+  "settings": {
+    "max_tokens": 32768,
+    "stream": true,
+    "other": "provider defaults; no system message, no sampling settings sent"
+  },
+  "wrapper": "Implement the following task. Return the complete code in one file and nothing else.",
+  "prompt_md_sha256": "3bd82a47d730402b5985aa5eb90b6ac436f39495718922a3879475c27fbdc6fb",
+  "prompt_sent_sha256": "22913b46359fad546fc1dc69bbd57aa91b995b87f0abfb654cf1f6b41154dd90",
+  "table": [
+    {
+      "solution": "reference",
+      "public": [
+        5,
+        5
+      ],
+      "hidden": [
+        173,
+        173
+      ],
+      "all_3_runs_100_percent": true
+    },
+    {
+      "solution": "gemini attempt 1",
+      "folder": "gemini_run_1",
+      "compiled": true,
+      "public": [
+        5,
+        5
+      ],
+      "hidden": [
+        172,
+        173
+      ],
+      "failed_hidden_tests": [
+        "H151"
+      ],
+      "fails_at_least_one_hidden": true
+    },
+    {
+      "solution": "gemini attempt 2",
+      "folder": "gemini_run_2",
+      "compiled": true,
+      "public": [
+        5,
+        5
+      ],
+      "hidden": [
+        173,
+        173
+      ],
+      "failed_hidden_tests": [],
+      "fails_at_least_one_hidden": false
+    },
+    {
+      "solution": "gemini attempt 3",
+      "folder": "gemini_run_3",
+      "compiled": true,
+      "public": [
+        5,
+        5
+      ],
+      "hidden": [
+        173,
+        173
+      ],
+      "failed_hidden_tests": [],
+      "fails_at_least_one_hidden": false
+    },
+    {
+      "solution": "gemini attempt 4",
+      "folder": "gemini_run_4",
+      "compiled": true,
+      "public": [
+        5,
+        5
+      ],
+      "hidden": [
+        173,
+        173
+      ],
+      "failed_hidden_tests": [],
+      "fails_at_least_one_hidden": false
+    },
+    {
+      "solution": "gemini attempt 5",
+      "folder": "gemini_run_5",
+      "compiled": true,
+      "public": [
+        5,
+        5
+      ],
+      "hidden": [
+        172,
+        173
+      ],
+      "failed_hidden_tests": [
+        "H151"
+      ],
+      "fails_at_least_one_hidden": true
+    }
+  ],
+  "attempts_failing_at_least_one_hidden_test": "2 of 5",
+  "mutants": {
+    "total": 8,
+    "killed": 8
+  },
+  "attempt_meta": [
+    {
+      "attempt": 1,
+      "date_utc": "2026-11-24",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 13200,
+        "completion_tokens": 11254,
+        "total_tokens": 24454
+      },
+      "hidden_prompt_tokens_estimate": 0,
+      "retries": 0,
+      "response_id": "msg_81888a5b43522b898c8c972f"
+    },
+    {
+      "attempt": 2,
+      "date_utc": "2026-11-24",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 15429,
+        "completion_tokens": 13054,
+        "total_tokens": 28483,
+        "prompt_tokens_details": {
+          "cached_tokens": 13375
+        }
+      },
+      "hidden_prompt_tokens_estimate": 2229,
+      "retries": 0,
+      "response_id": "msg_df312310992e6a0dc6b3f608"
+    },
+    {
+      "attempt": 3,
+      "date_utc": "2026-11-24",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 15429,
+        "completion_tokens": 15294,
+        "total_tokens": 30723,
+        "prompt_tokens_details": {
+          "cached_tokens": 13375
+        }
+      },
+      "hidden_prompt_tokens_estimate": 2229,
+      "retries": 0,
+      "response_id": "msg_a2a65cd052111a9c61f0cf62"
+    },
+    {
+      "attempt": 4,
+      "date_utc": "2026-11-24",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 15429,
+        "completion_tokens": 14719,
+        "total_tokens": 30148,
+        "prompt_tokens_details": {
+          "cached_tokens": 13375
+        }
+      },
+      "hidden_prompt_tokens_estimate": 2229,
+      "retries": 0,
+      "response_id": "msg_070f02802f575a1add39d718"
+    },
+    {
+      "attempt": 5,
+      "date_utc": "2026-11-24",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 15429,
+        "completion_tokens": 13000,
+        "total_tokens": 28429,
+        "prompt_tokens_details": {
+          "cached_tokens": 13375
+        }
+      },
+      "hidden_prompt_tokens_estimate": 2229,
+      "retries": 0,
+      "response_id": "msg_c5198b7c8c555535a0202985"
+    }
+  ]
+}

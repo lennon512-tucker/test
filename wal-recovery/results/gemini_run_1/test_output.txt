@@ -1,0 +1,9 @@
+public: 5 / 5 passed
+hidden: 172 / 173 passed
+
+FAILURES (1):
+H151 phantom_committed_before_range_record_still_conflicts (hidden)
+  expected: OK state={"b"="1"} committed=[2] aborted=[1] incomplete=[] validLength=71 tornTail=false
+  actual:   OK state={"b"="1"} committed=[2, 1] aborted=[] incomplete=[] validLength=71 tornTail=false
+
+TOTAL: 177 / 178 passed

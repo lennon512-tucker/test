@@ -1,0 +1,58 @@
+[
+  {
+    "id": "M1",
+    "area": "R10/R12 torn tail",
+    "description": "A bad checksum on any record, not only the last one, is treated as a torn tail.",
+    "find": "if (end == L) { validLength = p; tornTail = true; break; }",
+    "replace": "if (end <= L) { validLength = p; tornTail = true; break; }"
+  },
+  {
+    "id": "M2",
+    "area": "R6 boundary",
+    "description": "Torn-tail check for a short remainder uses < 2 instead of <= 2 bytes.",
+    "find": "if (L - p <= 2)",
+    "replace": "if (L - p < 2)"
+  },
+  {
+    "id": "M3",
+    "area": "R8 limit",
+    "description": "A payload of exactly the maximum size is rejected as RECORD_TOO_LARGE.",
+    "find": "if (n > MAX_PAYLOAD)",
+    "replace": "if (n >= MAX_PAYLOAD)"
+  },
+  {
+    "id": "M4",
+    "area": "5.4 checksum byte order",
+    "description": "The two stored checksum bytes are compared in swapped order (s1 first).",
+    "find": "(log[last] & 0xFF) == s2 && (log[last + 1] & 0xFF) == s1",
+    "replace": "(log[last] & 0xFF) == s1 && (log[last + 1] & 0xFF) == s2"
+  },
+  {
+    "id": "M5",
+    "area": "R17/R18 order",
+    "description": "BEGIN checks the open limit before the duplicate id.",
+    "find": "            // R17\n            if (begun.contains(txn)) throw new WalException(Code.DUPLICATE_TXN, p);\n            // R18\n            if (openCount >= MAX_OPEN_TXNS) throw new WalException(Code.TOO_MANY_OPEN, p);",
+    "replace": "            // R18\n            if (openCount >= MAX_OPEN_TXNS) throw new WalException(Code.TOO_MANY_OPEN, p);\n            // R17\n            if (begun.contains(txn)) throw new WalException(Code.DUPLICATE_TXN, p);"
+  },
+  {
+    "id": "M6",
+    "area": "R19a write limit",
+    "description": "PUT allows a 9th write (off by one on MAX_WRITES).",
+    "find": "if (t.wn >= MAX_WRITES) throw new WalException(Code.TXN_TOO_LARGE, p);\n            // R21\n            t.append(recRank[curIdx], true",
+    "replace": "if (t.wn > MAX_WRITES) throw new WalException(Code.TXN_TOO_LARGE, p);\n            // R21\n            t.append(recRank[curIdx], true"
+  },
+  {
+    "id": "M7",
+    "area": "R23b savepoint removal",
+    "description": "ROLLBACK removes savepoints by larger position instead of by larger setting-record offset.",
+    "find": "if (nm != name && t.spOff[nm] > setOff) t.spOff[nm] = -1;",
+    "replace": "if (nm != name && t.spOff[nm] >= 0 && t.spPos[nm] > pos) t.spOff[nm] = -1;"
+  },
+  {
+    "id": "M8",
+    "area": "R19c checkpoint order",
+    "description": "CHECKPOINT compares the listed ids with the open ids in slot order, not ascending order.",
+    "find": "Arrays.sort(ids);\n            if (c != m) throw new WalException(Code.CHECKPOINT_MISMATCH, p);",
+    "replace": "if (c != m) throw new WalException(Code.CHECKPOINT_MISMATCH, p);"
+  }
+]

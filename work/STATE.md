@@ -1,12 +1,12 @@
 # STATE: WAL recovery assignment
 Initials: SJ   Name: Sam Joe   Started: 2026-11-23
-PROMPT.md: DRAFT v5 (spec audited; tests audited)    (when frozen: FROZEN sha256=... on YYYY-MM-DD)
+PROMPT.md: FROZEN v5 sha256=3bd82a47d730402b5985aa5eb90b6ac436f39495718922a3879475c27fbdc6fb on 2026-11-24 (frozen by the user's wrap-up decision, not by the 4/5 condition)
 Gemini model: gemini-4-carbon via OneProvider (user choice 2026-11-24; see Open issues)   (previous: gemini-3.1-pro-preview, chosen 2026-11-24: the only current non-deprecated Pro text model in --models output and the docs models page/changelog; concrete id preferred over alias gemini-pro-latest; gemini-2.5-pro deprecated)
 Hidden tests: 173, audited: yes (v5: H09, H11, H20, H124-H162 blind-audited 42/42; H163-H173 added from that audit and re-derived by hand)   v4: 123, audited: yes (v4: P05, H11, H20, H102-H118 audited 20/20 in "P8 round 3 hardening"; H119-H123 added from that audit)   previously: 101, audited: yes   (H01-H69 audited in P7 against v2, v2 outcomes confirmed for v3 by the v3 regression check; H11, H20, H70-H99 and P04 audited for v3 in "P8 hardening: audit v3 tests" (33/33 agree); H100-H101 added by that audit)   Public tests: 5 (P01-P05)
-Reference: not started
-Mutants: 0/8 killed
-Official run: not done           (date; attempts failing >=1 hidden test: x/5)
-Analysis: not started
+Reference: done (written blind from PROMPT.md by a separate agent; 178/178 on 3 consecutive runs; 0 disputed tests)
+Mutants: 8/8 killed
+Official run: 2026-11-24, gemini-4-carbon via OneProvider; attempts failing >=1 hidden test: 2/5 (H151 in attempts 1 and 5)
+Analysis: FAILURE_ANALYSIS.md written (1 distinct failure, H151)
 
 ## Session log
 | Session | Date | Result | Notes |
@@ -36,6 +36,7 @@ Analysis: not started
 | P8 v5 tests audited | 2026-11-24 | done | Blind audit (subagent, P7 method) of H09, H11, H20, H124-H162: 42/42 agree, 0 derivation errors, quotes verbatim (work/notes/test-audit-v5.md). Its 6 proposed tests + 5 more field/precedence cases added as H163-H173 (each re-derived by hand; layouts checked by frame walk). Stub: 0/178 all THROW; selftest OK. Round-5 attempts on the full suite: 1 and 5 fail H151+H162, 2 and 4 fail H162 only (all other 171-172 agree with the hand-derived lines). |
 | P8 round 6 (v5 final) | 2026-11-24 | 0/5 fail; NOT frozen | 5 fresh attempts on audited v5: all 178/178. Fuzz-diff 0/30000, stress A-H all < 1.7 s at 512 MiB. The fairness fixes from the v5 spec audit (stated test shapes, exact R22 window) removed the round-5 failure modes. Runner: --first K to resume a round. Waiting for the user's decision. |
 | P8 model check (vs brief §4) | 2026-11-24 | blocked on the user | Re-read the client PDF (Assignment-prove-AI-fails.pdf.pdf, 3 pages). §4.2 needs the latest Gemini **Pro** on the **Gemini API**; gemini-4-carbon is not a Pro model and OneProvider is not Google's API. --models: newest Pro text model still gemini-3.1-pro-preview. Probe 'Reply with OK.' -> HTTP 429, free-tier limit 0 (saved in work/pilot/smoke3/). OneProvider /v1/models has no Gemini Pro text model. Draft client question in work/notes/client-question-model.md. Next: the user enables billing (or the client answers), then pilot v5 on gemini-3.1-pro-preview via the Gemini API. |
+| Wrap-up (user: Carbon, 5 tests, deliverable for Ivan) | 2026-11-24 | done; 2/5 < 4/5 | Official run results/ (5 attempts, no re-rolls): 172, 173, 173, 173, 172 of 173 hidden; all public 5/5. H151 fails in 1 and 5 (eager conflict notification at the other txn's COMMIT; R22 window). Reference by blind subagent: 178/178 x3. runner: offline default mode (summary.json, report.md, reference_runs.json), --mutants; --fresh now also runs offline. 8 mutants all killed. FAILURE_ANALYSIS.md, README.md (10 lines). ZIP /root/Documents/test/SJ-wal-recovery-20261124.zip (65 files; clean unpack rerun gives the same results). Reply draft work/notes/reply-to-ivan.md (hours left as [X]). |
 
 ## Disputed tests (written by R, ruled on by H1)
 - none
