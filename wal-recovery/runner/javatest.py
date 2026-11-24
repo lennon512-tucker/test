@@ -120,6 +120,21 @@ def test_solution(solution_path, name="adhoc", suites=SUITES):
             for r in _parse(out, "@@TEST"):
                 if len(r) == 4:
                     got[r[0]] = (r[1], r[2], r[3])
+            # A call that timed out keeps running in its JVM and can slow down or starve later
+            # tests. So every test after the first TIMEOUT (or after a missing line) is run
+            # again alone in a fresh JVM, and that result is used.
+            ids = [c["id"] for c in cases[s]]
+            first = next((i for i, t in enumerate(ids) if t not in got or got[t][2] == "TIMEOUT"), None)
+            if first is not None and first + 1 < len(ids):
+                for t in ids[first + 1:]:
+                    o2, _ = _run(d, [s, "only", t])
+                    rows = [r for r in _parse(o2, "@@TEST") if len(r) == 4 and r[0] == t]
+                    if rows:
+                        got[t] = (rows[0][1], rows[0][2], rows[0][3])
+                    else:
+                        got.pop(t, None)
+                result["notes"].append("%s: %d test(s) after the first TIMEOUT or missing line were re-run alone"
+                                       % (s, len(ids) - first - 1))
         for c in cases[s]:
             if not ok:
                 st, ex, ac = "FAIL", c["expected"], "COMPILE_ERROR"

@@ -78,6 +78,50 @@ public final class LogBuilder {
         return record(8, p);
     }
 
+    /** READ (type 9) expecting the key to be absent: txn, k, key, f = 0. */
+    public LogBuilder readAbsent(long txn, String key) {
+        byte[] k = latin1(key);
+        if (k.length > 255) throw new IllegalArgumentException("key longer than 255 bytes");
+        byte[] p = new byte[4 + 1 + k.length + 1];
+        System.arraycopy(u32(txn), 0, p, 0, 4);
+        p[4] = (byte) k.length;
+        System.arraycopy(k, 0, p, 5, k.length);
+        p[5 + k.length] = 0;
+        return record(9, p);
+    }
+
+    /** READ (type 9) expecting the key to be present with value: txn, k, key, f = 1, v, value. */
+    public LogBuilder read(long txn, String key, String value) {
+        byte[] k = latin1(key), v = latin1(value);
+        if (k.length > 255) throw new IllegalArgumentException("key longer than 255 bytes");
+        if (v.length > 65535) throw new IllegalArgumentException("value longer than 65535 bytes");
+        byte[] p = new byte[4 + 1 + k.length + 1 + 2 + v.length];
+        int i = 0;
+        System.arraycopy(u32(txn), 0, p, i, 4); i += 4;
+        p[i++] = (byte) k.length;
+        System.arraycopy(k, 0, p, i, k.length); i += k.length;
+        p[i++] = 1;
+        p[i++] = (byte) (v.length >> 8);
+        p[i++] = (byte) v.length;
+        System.arraycopy(v, 0, p, i, v.length);
+        return record(9, p);
+    }
+
+    /** RANGE (type 10): txn, k1, lo, k2, hi, count (u32). */
+    public LogBuilder range(long txn, String lo, String hi, long count) {
+        byte[] a = latin1(lo), b = latin1(hi);
+        if (a.length > 255 || b.length > 255) throw new IllegalArgumentException("key longer than 255 bytes");
+        byte[] p = new byte[4 + 1 + a.length + 1 + b.length + 4];
+        int i = 0;
+        System.arraycopy(u32(txn), 0, p, i, 4); i += 4;
+        p[i++] = (byte) a.length;
+        System.arraycopy(a, 0, p, i, a.length); i += a.length;
+        p[i++] = (byte) b.length;
+        System.arraycopy(b, 0, p, i, b.length); i += b.length;
+        System.arraycopy(u32(count), 0, p, i, 4);
+        return record(10, p);
+    }
+
     /** A record with the true payload length and the correct checksum. */
     public LogBuilder record(int type, byte[] payload) {
         if (payload.length > 65535) throw new IllegalArgumentException("payload longer than 65535 bytes");

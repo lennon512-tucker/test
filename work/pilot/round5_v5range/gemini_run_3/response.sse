@@ -1,0 +1,874 @@
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"```java\nimport"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" java.nio.charset.StandardCharsets;\nimport java.util.ArrayList;\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"import java.util.Arrays;\nimport java.util.Collections;\nimport java.util.HashMap;"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\nimport java.util.HashSet;\nimport java.util.List;\nimport java.util.Map"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":";\nimport java.util.Objects;\n\npublic final class WalRecovery {\n    private WalRecovery() {}\n\n    private"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" static final int MAX_PAYLOAD = 1024;\n    private static final int MIN_KEY_LEN"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" = 1;\n    private static final int MAX_KEY_LEN = 32;\n    private static"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" final int KEY_BYTE_MIN = 0x21;\n    private static final int KEY_BYTE_"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"MAX = 0x7E;\n    private static final int VALUE_BYTE_MIN = 0x2"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"0;\n    private static final int VALUE_BYTE_MAX = 0x7E;\n    private static"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" final int NAME_BYTE_MIN = 0x21;\n    private static final int NAME_BYTE_"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"MAX = 0x7E;\n    private static final int MAX_OPEN_TXNS = 4;"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n    private static final int MAX_WRITES = 8;\n\n    private static final byte[] MAGIC = {0"},"finish_reason":null}]}
+
+: keepalive
+
+: keepalive
+
+: keepalive
+
+: keepalive
+
+: keepalive
+
+: keepalive
+
+: keepalive
+
+: keepalive
+
+: keepalive
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"x57, 0x41, 0x4C, 0x31};\n\n    /** Recovers the store from"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" a log. Must not modify {@code log}. */\n    public static Result recover(byte[] log) throws Wal"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Exception {\n        Objects.requireNonNull(log);\n        final int L = log.length;\n\n        "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"// R2\n        if (L == 0) {\n            return emptyResult(0, false);\n        "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"}\n        // R3\n        if (L \u003c 4) {\n            for (int i = 0;"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" i \u003c L; i++) {\n                if (log[i] != MAGIC[i]) {\n                    throw"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" new WalException(Code.BAD_MAGIC, 0);\n                }\n            }\n            return emptyResult"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"(0, true);\n        }\n        // R4\n        if (log[0] != MAGIC["},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"0] || log[1] != MAGIC[1] || log[2] != MAGIC[2] || log[3] != MAGIC[3"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"]) {\n            throw new WalException(Code.BAD_MAGIC, 0);\n        }\n\n        //"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" Phase 1: frames\n        int p = 4;\n        int validLength = L;\n        boolean torn"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Tail = false;\n\n        while (true) {\n            // R5\n            if (p == L)"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" {\n                validLength = L;\n                tornTail = false;\n                break;\n            }\n            "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"// R6\n            if (L - p \u003c= 2) {\n                validLength = p;\n                "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"tornTail = true;\n                break;\n            }\n            // R7\n            int type = log["},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"p] \u0026 0xFF;\n            if (type \u003c 1 || type \u003e 10) {\n                throw new WalException("},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Code.UNKNOWN_TYPE, p);\n            }\n            // R8\n            int N = u16(log, p + "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"1);\n            if (N \u003e MAX_PAYLOAD) {\n                throw new WalException(Code.RECORD_"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"TOO_LARGE, p);\n            }\n            // R9\n            int nextP = p + 5 + N"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":";\n            if (nextP \u003e L) {\n                validLength = p;\n                tornTail = true"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":";\n                break;\n            }\n            // R10\n            if (!checkFletcher16(log, p,"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" 3 + N, log[p + 3 + N] \u0026 0xFF, log[p + 4 + N"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"] \u0026 0xFF)) {\n                if (nextP == L) {\n                    validLength = p"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":";\n                    tornTail = true;\n                    break;\n                } else {\n                    throw new WalException("},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Code.CHECKSUM_MISMATCH, p);\n                }\n            }\n            // R11\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"            p = nextP;\n        }\n\n        // Phase 2: replay\n        IntSet seenTxns = new IntSet"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"(1024);\n        PersistentTreap currentState = new PersistentTreap();\n        Txn[] openTx"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"ns = new Txn[MAX_OPEN_TXNS];\n        int openCount = 0;\n\n        "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Txn[] txnPool = new Txn[MAX_OPEN_TXNS];\n        for (int i = 0;"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" i \u003c MAX_OPEN_TXNS; i++) {\n            txnPool[i] = new Txn();"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n        }\n        int poolTop = MAX_OPEN_TXNS;\n\n        List\u003cLong\u003e committed ="},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" new ArrayList\u003c\u003e();\n        List\u003cLong\u003e aborted = new ArrayList\u003c\u003e();\n\n        p = 4;\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"        while (p \u003c validLength) {\n            int type = log[p] \u0026 0xFF;"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n            int N = u16(log, p + 1);\n            int payloadOff = p + 3;\n\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"            switch (type) {\n                case 1 -\u003e { // BEGIN\n                    // R13\n                    if (N != "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"4) throw new WalException(Code.MALFORMED_PAYLOAD, p);\n                    // R14\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"                    int txnId = s32(log, payloadOff);\n                    if (txnId == 0) throw new WalException(Code"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":".BAD_TXN_ID, p);\n                    // R17\n                    if (!seenTxns."},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"add(txnId)) throw new WalException(Code.DUPLICATE_TXN, p);\n                    // R"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"18\n                    if (openCount == MAX_OPEN_TXNS) throw new WalException(Code.TOO"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"_MANY_OPEN, p);\n\n                    // R20\n                    Txn t = txnPool[--poolTop];"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n                    t.init(txnId, p, currentState.root);\n                    openTxns[openCount++] = t;\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"                }\n                case 2 -\u003e { // PUT\n                    // R13\n                    if (N \u003c "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"5) throw new WalException(Code.MALFORMED_PAYLOAD, p);\n                    int k = log["},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"payloadOff + 4] \u0026 0xFF;\n                    if (N \u003c 7 + k) throw new WalException(Code.MAL"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"FORMED_PAYLOAD, p);\n                    int v = u16(log, payloadOff + 5 +"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" k);\n                    if (N != 7 + k + v) throw new WalException(Code.MALFORM"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"ED_PAYLOAD, p);\n                    // R14\n                    int txnId = s32(log, payloadOff);\n                    if ("},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"txnId == 0) throw new WalException(Code.BAD_TXN_ID, p);\n                    "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"// R15\n                    checkKey(log, payloadOff + 5, k, p);\n                    // R16\n                    int"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" valOff = payloadOff + 7 + k;\n                    checkValue(log, valOff, v, p"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":");\n                    // R19\n                    Txn t = findOpenTxn(openTxns, openCount, txn"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Id);\n                    if (t == null) throw new WalException(Code.TXN_NOT_OPEN,"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" p);\n                    // R19a\n                    if (t.writeCount == MAX_WRITES) throw new WalException(Code.TX"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"N_TOO_LARGE, p);\n\n                    // R21\n                    String key = asciiString(log,"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" payloadOff + 5, k);\n                    t.addPut(key, valOff, v);\n                "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"}\n                case 3 -\u003e { // DELETE\n                    // R13\n                    if (N \u003c 5"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":") throw new WalException(Code.MALFORMED_PAYLOAD, p);\n                    int k = log[payload"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Off + 4] \u0026 0xFF;\n                    if (N != 5 + k) throw new"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" WalException(Code.MALFORMED_PAYLOAD, p);\n                    // R14\n                    int txnId"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" = s32(log, payloadOff);\n                    if (txnId == 0) throw new WalException"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"(Code.BAD_TXN_ID, p);\n                    // R15\n                    checkKey(log"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":", payloadOff + 5, k, p);\n                    // R19\n                    Txn t = findOpen"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Txn(openTxns, openCount, txnId);\n                    if (t == null) throw new WalException"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"(Code.TXN_NOT_OPEN, p);\n                    // R19a\n                    if (t"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":".writeCount == MAX_WRITES) throw new WalException(Code.TXN_TOO_LARGE, p"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":");\n\n                    // R21\n                    String key = asciiString(log, payloadOff + 5, k"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":");\n                    t.addDelete(key);\n                }\n                case 4 -\u003e { // COMMIT\n                    "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"// R13\n                    if (N != 4) throw new WalException(Code.MALFORMED_"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"PAYLOAD, p);\n                    // R14\n                    int txnId = s32(log, payloadOff"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":");\n                    if (txnId == 0) throw new WalException(Code.BAD_TXN_ID"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":", p);\n                    // R19\n                    int idx = findOpenTxnIndex(openTxns, openCount,"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" txnId);\n                    if (idx \u003c 0) throw new WalException(Code.TXN_NOT_OPEN"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":", p);\n\n                    // R22\n                    Txn t = openTxns[idx];\n                    openTx"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"ns[idx] = openTxns[--openCount];\n                    openTxns[openCount] = null;"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n\n                    if (t.conflicted) {\n                        aborted.add(Integer.toUnsignedLong(txn"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Id));\n                    } else {\n                        // Notify remaining open transactions that began before this COMMIT\n                        if (open"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Count \u003e 0 \u0026\u0026 t.writeCount \u003e 0) {\n                            notifyCommittedWrites(openTxns, openCount"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":", t);\n                        }\n                        // Apply writes to state in write-list order\n                        for (int i = 0; i \u003c"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" t.writeCount; i++) {\n                            String wKey = t.writeKeys[i];\n                            int"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" vOff = t.writeValOff[i];\n                            if (vOff \u003e= 0) {\n                               "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" String val = asciiString(log, vOff, t.writeValLen[i]);\n                                currentState."},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"put(wKey, val);\n                            } else {\n                                currentState.remove(wKey);\n                            }\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"                        }\n                        committed.add(Integer.toUnsignedLong(txnId));\n                    }\n                    t."},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"reset();\n                    txnPool[poolTop++] = t;\n                }\n                case 5 -\u003e { // AB"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"ORT\n                    // R13\n                    if (N != 4) throw new WalException(Code.MAL"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"FORMED_PAYLOAD, p);\n                    // R14\n                    int txnId = s32(log"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":", payloadOff);\n                    if (txnId == 0) throw new WalException(Code.BAD_TX"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"N_ID, p);\n                    // R19\n                    int idx = findOpenTxnIndex(openTx"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"ns, openCount, txnId);\n                    if (idx \u003c 0) throw new WalException(Code."},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"TXN_NOT_OPEN, p);\n\n                    // R23\n                    Txn t = openTxns["},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"idx];\n                    openTxns[idx] = openTxns[--openCount];\n                    openTxns["},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"openCount] = null;\n\n                    aborted.add(Integer.toUnsignedLong(txnId));\n                    "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"t.reset();\n                    txnPool[poolTop++] = t;\n                }\n                case 6 -\u003e { // SAVEPOINT\n                    //"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" R13\n                    if (N != 5) throw new WalException(Code.MALFORMED_PAYLOAD"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":", p);\n                    // R14\n                    int txnId = s32(log, payloadOff);"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n                    if (txnId == 0) throw new WalException(Code.BAD_TXN_ID,"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" p);\n                    // R16a\n                    int name = log[payloadOff + 4] \u0026 "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"0xFF;\n                    if (name \u003c NAME_BYTE_MIN || name \u003e NAME_BYTE_MAX)"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" {\n                        throw new WalException(Code.BAD_NAME, p);\n                    }\n                    // R1"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"9\n                    Txn t = findOpenTxn(openTxns, openCount, txnId);\n                    if ("},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"t == null) throw new WalException(Code.TXN_NOT_OPEN, p);\n\n                    // R"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"23a\n                    t.setSavepoint(name, p);\n                }\n                case 7 -\u003e"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" { // ROLLBACK\n                    // R13\n                    if (N != 5) throw new WalException("},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Code.MALFORMED_PAYLOAD, p);\n                    // R14\n                    int txnId = s3"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"2(log, payloadOff);\n                    if (txnId == 0) throw new WalException(Code."},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"BAD_TXN_ID, p);\n                    // R16a\n                    int name = log[payload"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Off + 4] \u0026 0xFF;\n                    if (name \u003c NAME_BYTE_MIN || name"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" \u003e NAME_BYTE_MAX) {\n                        throw new WalException(Code.BAD_NAME, p);\n                    }\n                    // R1"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"9\n                    Txn t = findOpenTxn(openTxns, openCount, txnId);\n                    if ("},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"t == null) throw new WalException(Code.TXN_NOT_OPEN, p);\n                    // R"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"19b\n                    if (!t.hasSavepoint(name)) {\n                        throw new WalException(Code"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":".NO_SAVEPOINT, p);\n                    }\n\n                    // R23b\n                    t.rollbackTo"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"(name);\n                }\n                case 8 -\u003e { // CHECKPOINT\n                    // R13\n                    if"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" (N \u003c 1) throw new WalException(Code.MALFORMED_PAYLOAD, p);\n                    int"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" c = log[payloadOff] \u0026 0xFF;\n                    if (N != 1 + 4"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" * c) throw new WalException(Code.MALFORMED_PAYLOAD, p);\n                    // R14"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n                    for (int i = 0; i \u003c c; i++) {\n                        int listedId = s32(log, payload"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Off + 1 + 4 * i);\n                        if (listedId == 0) throw new WalException"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"(Code.BAD_TXN_ID, p);\n                    }\n                    // R19c\n                    "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"if (c != openCount) {\n                        throw new WalException(Code.CHECKPOINT_MISMATCH,"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" p);\n                    }\n                    if (c \u003e 0) {\n                        long[] openIds = new long[openCount];\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"                        for (int i = 0; i \u003c openCount; i++) {\n                            openIds[i]"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" = Integer.toUnsignedLong(openTxns[i].id);\n                        }\n                        Arrays.sort("},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"openIds);\n                        for (int i = 0; i \u003c c; i++) {\n                            long listed"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" = Integer.toUnsignedLong(s32(log, payloadOff + 1 + 4 * i));\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"                            if (listed != openIds[i]) {\n                                throw new WalException(Code.CHECKPOINT_M"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"ISMATCH, p);\n                            }\n                        }\n                    }\n                    // R23c: nothing changes"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n                }\n                case 9 -\u003e { // READ\n                    // R13\n                    if (N \u003c"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" 6) throw new WalException(Code.MALFORMED_PAYLOAD, p);\n                    int k = log"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"[payloadOff + 4] \u0026 0xFF;\n                    if (N \u003c 6 + k)"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" throw new WalException(Code.MALFORMED_PAYLOAD, p);\n                    int f = log[payloadOff"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" + 5 + k] \u0026 0xFF;\n                    int v = 0;\n                    int exp"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"ValOff = 0;\n                    if (f == 0) {\n                        if (N != 6"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" + k) throw new WalException(Code.MALFORMED_PAYLOAD, p);\n                    } else if ("},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"f == 1) {\n                        if (N \u003c 8 + k) throw new WalException(Code."},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"MALFORMED_PAYLOAD, p);\n                        v = u16(log, payloadOff + 6 +"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" k);\n                        if (N != 8 + k + v) throw new WalException(Code.MALFORM"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"ED_PAYLOAD, p);\n                        expValOff = payloadOff + 8 + k;\n                    } else"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" {\n                        throw new WalException(Code.MALFORMED_PAYLOAD, p);\n                    }\n                    //"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" R14\n                    int txnId = s32(log, payloadOff);\n                    if (txnId"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" == 0) throw new WalException(Code.BAD_TXN_ID, p);\n                    // R"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"15\n                    checkKey(log, payloadOff + 5, k, p);\n                    // R1"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"6\n                    if (f == 1) {\n                        checkValue(log, expValOff, v,"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" p);\n                    }\n                    // R19\n                    Txn t = findOpenTxn(openTxns,"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" openCount, txnId);\n                    if (t == null) throw new WalException(Code.TXN_"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"NOT_OPEN, p);\n\n                    // R19d\n                    String key = asciiString(log, payloadOff + 5, k);"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n                    if (!checkReadView(log, t, key, f, expValOff, v)) {\n                        throw new WalException"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"(Code.READ_MISMATCH, p);\n                    }\n\n                    // R23d\n                    t"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":".addReadKey(key);\n                }\n                case 10 -\u003e { // RANGE\n                    // R"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"13\n                    if (N \u003c 6) throw new WalException(Code.MALFORMED_PAYLOAD,"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" p);\n                    int k1 = log[payloadOff + 4] \u0026 0xFF;\n                    "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"if (N \u003c 6 + k1) throw new WalException(Code.MALFORMED_PAYLOAD, p"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":");\n                    int k2 = log[payloadOff + 5 + k1] \u0026 0xFF;"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n                    if (N != 10 + k1 + k2) throw new WalException(Code.MAL"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"FORMED_PAYLOAD, p);\n                    // R14\n                    int txnId = s32(log"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":", payloadOff);\n                    if (txnId == 0) throw new WalException(Code.BAD_TX"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"N_ID, p);\n                    // R15\n                    checkKey(log, payloadOff + 5"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":", k1, p);\n                    checkKey(log, payloadOff + 6 + k1, k2, p);\n                    //"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" R19\n                    Txn t = findOpenTxn(openTxns, openCount, txnId);\n                    "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"if (t == null) throw new WalException(Code.TXN_NOT_OPEN, p);\n\n                    "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"// R19e\n                    String lo = asciiString(log, payloadOff + 5, k1);"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n                    String hi = asciiString(log, payloadOff + 6 + k1, k2);\n                    long expectedCount = Integer."},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"toUnsignedLong(s32(log, payloadOff + 6 + k1 + k2));\n                    "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"int actualCount = countRangeView(t, lo, hi);\n                    if ((long) actualCount != expectedCount) {\n                        throw"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" new WalException(Code.RANGE_MISMATCH, p);\n                    }\n\n                    // R23e"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n                    t.addReadRange(lo, hi);\n                }\n            }\n\n            p += 5"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" + N;\n        }\n\n        // Build result\n        Map\u003cString, String\u003e stateMap = new HashMap\u003c\u003e();"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n        PersistentTreap.collect(currentState.root, stateMap);\n\n        List\u003cLong\u003e incomplete ="},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" new ArrayList\u003c\u003e(openCount);\n        if (openCount \u003e 0) {\n            long[] incArr"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" = new long[openCount];\n            for (int i = 0; i \u003c openCount; i++)"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" {\n                incArr[i] = Integer.toUnsignedLong(openTxns[i].id);\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"            }\n            Arrays.sort(incArr);\n            for (long id : incArr) {\n                incomplete"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":".add(id);\n            }\n        }\n\n        return new Result(stateMap, committed, aborted,"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" incomplete, validLength, tornTail);\n    }\n\n    private static Result emptyResult(int validLength, boolean"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" tornTail) {\n        return new Result(\n                Collections.emptyMap(),\n                Collections.emptyList(),"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n                Collections.emptyList(),\n                Collections.emptyList(),\n                validLength,\n                tornTail\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"        );\n    }\n\n    private static int u16(byte[] b, int off) {\n        return"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" ((b[off] \u0026 0xFF) \u003c\u003c 8) | (b[off + 1]"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" \u0026 0xFF);\n    }\n\n    private static int s32(byte[] b, int off"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":") {\n        return ((b[off] \u0026 0xFF) \u003c\u003c 24)\n                |"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" ((b[off + 1] \u0026 0xFF) \u003c\u003c 16)\n                | ((b"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"[off + 2] \u0026 0xFF) \u003c\u003c 8)\n                | (b[off +"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" 3] \u0026 0xFF);\n    }\n\n    private static String asciiString(byte[] b, int off, int len) {"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n        if (len == 0) return \"\";\n        return new String(b, off, len, Standard"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Charsets.ISO_8859_1);\n    }\n\n    private static boolean checkFletcher16"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"(byte[] log, int off, int len, int expectedS2, int expectedS1) {\n        int s1 = "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"0;\n        int s2 = 0;\n        int end = off + len;\n        // Max len is 3"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" + 1024 = 1027. Max unreduced s2 \u003c 1027 * 1"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"028 / 2 * 255 \u003c 1.35e8 \u003c Integer.MAX_VALUE.\n        for"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" (int i = off; i \u003c end; i++) {\n            s1 += log[i] \u0026 0xFF"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":";\n            s2 += s1;\n        }\n        s1 %= 255;\n        s2 %= 25"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"5;\n        return s2 == expectedS2 \u0026\u0026 s1 == expectedS1;\n    }\n\n    private static void checkKey(byte"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"[] log, int off, int len, int recordOffset) throws WalException {\n        if (len \u003c MIN_KEY_"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"LEN || len \u003e MAX_KEY_LEN) {\n            throw new WalException(Code.BAD_KEY,"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" recordOffset);\n        }\n        int end = off + len;\n        for (int i = off;"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" i \u003c end; i++) {\n            int c = log[i] \u0026 0xFF;\n            "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"if (c \u003c KEY_BYTE_MIN || c \u003e KEY_BYTE_MAX) {\n                throw new Wal"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Exception(Code.BAD_KEY, recordOffset);\n            }\n        }\n    }\n\n    private static"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" void checkValue(byte[] log, int off, int len, int recordOffset) throws WalException {\n        "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"int end = off + len;\n        for (int i = off; i \u003c end; i++) {\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"            int c = log[i] \u0026 0xFF;\n            if (c \u003c VALUE_BYTE_"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"MIN || c \u003e VALUE_BYTE_MAX) {\n                throw new WalException(Code.BAD_VALUE,"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" recordOffset);\n            }\n        }\n    }\n\n    private static Txn findOpenTxn(Txn[]"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" openTxns, int openCount, int txnId) {\n        for (int i = 0; i \u003c open"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Count; i++) {\n            if (openTxns[i].id == txnId) return openTxns[i];\n        }\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"        return null;\n    }\n\n    private static int findOpenTxnIndex(Txn[] openTxns, int"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" openCount, int txnId) {\n        for (int i = 0; i \u003c openCount; i"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"++) {\n            if (openTxns[i].id == txnId) return i;\n        }\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"        return -1;\n    }\n\n    private static boolean checkReadView(byte[] log, Txn t, String"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" key, int f, int expValOff, int expValLen) {\n        // Check write list from last to first\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"        for (int i = t.writeCount - 1; i \u003e= 0; i--) {\n            "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"if (t.writeKeys[i].equals(key)) {\n                int wValOff = t.writeValOff["},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"i];\n                if (wValOff \u003c 0) { // DELETE\n                    return f == 0;\n                } else { // PUT"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n                    if (f == 0) return false;\n                    int wValLen = t.writeValLen[i];\n                    if"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" (wValLen != expValLen) return false;\n                    return Arrays.equals(log, wValOff"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":", wValOff + wValLen, log, expValOff, expValOff + expValLen);\n                }\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"            }\n        }\n        // Check snapshot\n        String snapVal = PersistentTreap.get(t.snapshot"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Root, key);\n        if (snapVal == null) {\n            return f == 0;\n        }"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" else {\n            if (f == 0) return false;\n            if (snapVal.length() !="},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" expValLen) return false;\n            for (int i = 0; i \u003c expValLen; i"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"++) {\n                if (snapVal.charAt(i) != (log[expValOff + i]"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" \u0026 0xFF)) {\n                    return false;\n                }\n            }\n            return true;\n        }\n    }\n\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"    private static int countRangeView(Txn t, String lo, String hi) {\n        if (lo."},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"compareTo(hi) \u003e 0) {\n            return 0;\n        }\n        int count ="},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" PersistentTreap.countRange(t.snapshotRoot, lo, hi);\n        if (t.writeCount =="},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" 0) {\n            return count;\n        }\n        // Apply unique writes in [lo, hi],"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" taking the last write per key\n        for (int i = t.writeCount - 1; i \u003e= 0; i--) {\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"            String k = t.writeKeys[i];\n            if (k.compareTo(lo) \u003c "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"0 || k.compareTo(hi) \u003e 0) {\n                continue;\n            }\n            boolean seen"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Later = false;\n            for (int j = i + 1; j \u003c t.writeCount; j"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"++) {\n                if (t.writeKeys[j].equals(k)) {\n                    seenLater = true"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":";\n                    break;\n                }\n            }\n            if (seenLater) {\n                continue;\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"            }\n            boolean inSnap = PersistentTreap.get(t.snapshotRoot, k) != null;\n            boolean is"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Put = t.writeValOff[i] \u003e= 0;\n            if (isPut \u0026\u0026 !inSnap) {\n                count"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"++;\n            } else if (!isPut \u0026\u0026 inSnap) {\n                count--;\n            }\n        }"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n        return count;\n    }\n\n    private static void notifyCommittedWrites(Txn[] openTxns, int openCount, Txn committed"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Txn) {\n        // Every open transaction in openTxns had its BEGIN processed before this COMMIT record,\n        // so its BEGIN offset is"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" strictly smaller than this COMMIT's offset.\n        int wCount = committedTxn.writeCount;\n        for (int i = "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"0; i \u003c openCount; i++) {\n            Txn other = openTxns[i];\n            if"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" (other.conflicted) continue;\n            boolean hasReads = other.readSet != null \u0026\u0026 !other.readSet."},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"isEmpty();\n            boolean hasRanges = other.rangeCount \u003e 0;\n            if (!hasReads \u0026\u0026"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" !hasRanges) continue;\n\n            for (int w = 0; w \u003c wCount; w++) {\n                String wKey = committed"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Txn.writeKeys[w];\n                // Dedup against earlier writes in committedTxn\n                boolean duplicate = false"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":";\n                for (int prev = 0; prev \u003c w; prev++) {\n                    if (committedTxn"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":".writeKeys[prev].equals(wKey)) {\n                        duplicate = true;\n                        break;\n                    "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"}\n                }\n                if (duplicate) continue;\n\n                if (hasReads \u0026\u0026 other.readSet."},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"contains(wKey)) {\n                    other.conflicted = true;\n                    break;\n                }\n                "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"if (hasRanges \u0026\u0026 other.matchesRange(wKey)) {\n                    other.conflicted = true;\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"                    break;\n                }\n            }\n        }\n    }\n\n    private static final class Txn {\n        int id;\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"        int beginOffset;\n        TreapNode snapshotRoot;\n\n        final String[] writeKeys = new String["},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"MAX_WRITES];\n        final int[] writeValOff = new int[MAX_WRITES]; // -"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"1 for DELETE\n        final int[] writeValLen = new int[MAX_WRITES];\n        int writeCount;\n\n        "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"// Savepoints indexed by byte value (0x21..0x7E)\n        final int[] spPos ="},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" new int[128];\n        final int[] spRecordOffset = new int[128];\n        final int"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"[] activeSpNames = new int[128];\n        int activeSpCount;\n\n        HashSet\u003c"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"String\u003e readSet;\n        String[] rangeLo;\n        String[] rangeHi;\n        int rangeCount"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":";\n        boolean rangesDirty;\n        String[] mergedLo;\n        String[] mergedHi;\n        int mergedCount"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":";\n\n        boolean conflicted;\n\n        Txn() {\n            Arrays.fill(spPos, -1);\n        }\n\n        void init("},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"int id, int beginOffset, TreapNode snapshotRoot) {\n            this.id = id;\n            "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"this.beginOffset = beginOffset;\n            this.snapshotRoot = snapshotRoot;\n            this.writeCount"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" = 0;\n            this.activeSpCount = 0;\n            this.conflicted = false;"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n            this.rangeCount = 0;\n            this.rangesDirty = false;\n            this.merged"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Count = 0;\n        }\n\n        void reset() {\n            this.snapshotRoot = null;\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"            Arrays.fill(writeKeys, 0, writeCount, null);\n            this.writeCount = 0;\n            for (int"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" i = 0; i \u003c activeSpCount; i++) {\n                int name = activeSpNames[i"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"];\n                spPos[name] = -1;\n                spRecordOffset[name] = 0;"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n            }\n            this.activeSpCount = 0;\n            if (readSet != null) {"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n                readSet.clear();\n            }\n            if (rangeLo != null \u0026\u0026 rangeCount \u003e 0"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":") {\n                Arrays.fill(rangeLo, 0, rangeCount, null);\n                Arrays.fill"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"(rangeHi, 0, rangeCount, null);\n            }\n            if (mergedLo != null \u0026\u0026"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" mergedCount \u003e 0) {\n                Arrays.fill(mergedLo, 0, mergedCount, null);\n                Arrays.fill(merged"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Hi, 0, mergedCount, null);\n            }\n            this.rangeCount = 0;\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"            this.mergedCount = 0;\n            this.rangesDirty = false;\n            this.conflicted"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" = false;\n        }\n\n        void addPut(String key, int valOff, int valLen) {"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n            int idx = writeCount++;\n            writeKeys[idx] = key;\n            writeValOff["},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"idx] = valOff;\n            writeValLen[idx] = valLen;\n        }\n\n        void"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" addDelete(String key) {\n            int idx = writeCount++;\n            writeKeys[idx] = key"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":";\n            writeValOff[idx] = -1;\n            writeValLen[idx] = 0"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":";\n        }\n\n        void setSavepoint(int name, int recordOffset) {\n            if (sp"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Pos[name] == -1) {\n                activeSpNames[activeSpCount++] = name;\n            "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"}\n            spPos[name] = writeCount;\n            spRecordOffset[name] = recordOffset;"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n        }\n\n        boolean hasSavepoint(int name) {\n            return spPos[name] != -"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"1;\n        }\n\n        void rollbackTo(int name) {\n            int targetPos = spPos["},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"name];\n            int targetOffset = spRecordOffset[name];\n            for (int i = targetPos; i \u003c writeCount; i"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"++) {\n                writeKeys[i] = null;\n            }\n            writeCount = targetPos;\n\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"            int newActive = 0;\n            for (int i = 0; i \u003c activeSpCount; i++) {\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"                int spName = activeSpNames[i];\n                if (spName != name \u0026\u0026 spRecordOffset["},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"spName] \u003e targetOffset) {\n                    spPos[spName] = -1;\n                    spRecord"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Offset[spName] = 0;\n                } else {\n                    activeSpNames[newActive++] ="},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" spName;\n                }\n            }\n            activeSpCount = newActive;\n        }\n\n        void"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" addReadKey(String key) {\n            if (conflicted) return;\n            if (readSet =="},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" null) {\n                readSet = new HashSet\u003c\u003e();\n            }\n            readSet.add(key);\n        }\n\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"        void addReadRange(String lo, String hi) {\n            if (conflicted) return;\n            "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"if (lo.compareTo(hi) \u003e 0) {\n                // Empty range can never contain any key K\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"                return;\n            }\n            if (rangeLo == null) {\n                rangeLo = new String["},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"8];\n                rangeHi = new String[8];\n            } else if (rangeCount == rangeLo."},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"length) {\n                rangeLo = Arrays.copyOf(rangeLo, rangeCount * 2);\n                rangeHi"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" = Arrays.copyOf(rangeHi, rangeCount * 2);\n            }\n            rangeLo[rangeCount] = lo;\n            "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"rangeHi[rangeCount] = hi;\n            rangeCount++;\n            rangesDirty = true;\n        }"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n\n        boolean matchesRange(String key) {\n            if (rangeCount == 0) return false;\n            "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"if (rangeCount \u003c= 8 \u0026\u0026 !rangesDirty \u0026\u0026 mergedCount \u003e 0) {\n                return binarySearchMerged(key);"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n            }\n            if (rangeCount \u003c= 8) {\n                for (int i = 0; i \u003c rangeCount"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"; i++) {\n                    if (key.compareTo(rangeLo[i]) \u003e= 0 \u0026\u0026 key."},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"compareTo(rangeHi[i]) \u003c= 0) {\n                        return true;\n                    }\n                }"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n                return false;\n            }\n            if (rangesDirty) {\n                rebuildMergedRanges();\n            }\n            "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"return binarySearchMerged(key);\n        }\n\n        private void rebuildMergedRanges() {\n            int n = rangeCount;\n            Integer"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"[] order = new Integer[n];\n            for (int i = 0; i \u003c n; i++) order["},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"i] = i;\n            Arrays.sort(order, (a, b) -\u003e {\n                int c"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" = rangeLo[a].compareTo(rangeLo[b]);\n                return c != 0 ? c : range"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Hi[a].compareTo(rangeHi[b]);\n            });\n\n            if (mergedLo == null ||"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" mergedLo.length \u003c n) {\n                mergedLo = new String[n];\n                mergedHi = new"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" String[n];\n            }\n            int m = 0;\n            String curLo = rangeLo[order["},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"0]];\n            String curHi = rangeHi[order[0]];\n            for (int i = 1"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"; i \u003c n; i++) {\n                String nextLo = rangeLo[order[i]];\n                String nextHi = range"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Hi[order[i]];\n                if (nextLo.compareTo(curHi) \u003c= 0) {"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n                    if (nextHi.compareTo(curHi) \u003e 0) {\n                        curHi = next"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Hi;\n                    }\n                } else {\n                    mergedLo[m] = curLo;\n                    merged"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Hi[m] = curHi;\n                    m++;\n                    curLo = nextLo;\n                    curHi"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" = nextHi;\n                }\n            }\n            mergedLo[m] = curLo;\n            merged"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Hi[m] = curHi;\n            mergedCount = m + 1;\n            rangesDirty = false"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":";\n        }\n\n        private boolean binarySearchMerged(String key) {\n            int low = 0;\n            int high"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" = mergedCount - 1;\n            int candidate = -1;\n            while (low \u003c= high) {\n                int"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" mid = (low + high) \u003e\u003e\u003e 1;\n                if (mergedLo[mid].compareTo(key"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":") \u003c= 0) {\n                    candidate = mid;\n                    low = mid + 1;\n                } else {\n                    high = mid"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" - 1;\n                }\n            }\n            return candidate \u003e= 0 \u0026\u0026 key.compareTo(merged"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Hi[candidate]) \u003c= 0;\n        }\n    }\n\n    private static final class TreapNode {"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n        final String key;\n        final String value;\n        final int priority;\n        final TreapNode left;\n        final Tre"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"apNode right;\n        final int size;\n\n        TreapNode(String key, String value, int priority"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":", TreapNode left, TreapNode right) {\n            this.key = key;\n            this."},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"value = value;\n            this.priority = priority;\n            this.left = left;\n            this."},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"right = right;\n            this.size = 1 + size(left) + size(right);\n        }\n\n        static int size("},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"TreapNode n) {\n            return n == null ? 0 : n.size;\n        }\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"    }\n\n    private static final class PersistentTreap {\n        TreapNode root;\n        private long rng"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"State = 0x9E3779B97F4A7C15L;\n\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"        private int nextPriority() {\n            long z = (rngState += 0x9E3779B97F"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"4A7C15L);\n            z = (z ^ (z \u003e\u003e\u003e 30)) * "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"0xBF58476D1CE4E5B9L;\n            z = (z ^ (z \u003e\u003e\u003e 27"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":")) * 0x94D049BB133111EBL;\n            return"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" (int) (z ^ (z \u003e\u003e\u003e 31));\n        }\n\n        void put(String key,"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" String value) {\n            root = insertOrReplace(root, key, value);\n        }\n\n        void remove("},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"String key) {\n            root = delete(root, key);\n        }\n\n        private TreapNode insert"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"OrReplace(TreapNode node, String key, String value) {\n            if (node == null) {\n                return new TreapNode"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"(key, value, nextPriority(), null, null);\n            }\n            int cmp = key.compareTo"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"(node.key);\n            if (cmp == 0) {\n                if (node.value.equals"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"(value)) {\n                    return node;\n                }\n                return new TreapNode(key, value, node.priority"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":", node.left, node.right);\n            } else if (cmp \u003c 0) {\n                Tre"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"apNode newLeft = insertOrReplace(node.left, key, value);\n                if (newLeft =="},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" node.left) return node;\n                if (newLeft.priority \u003e node.priority) {\n                    //"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" Rotate right\n                    TreapNode newRight = new TreapNode(node.key, node.value, node."},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"priority, newLeft.right, node.right);\n                    return new TreapNode(newLeft.key,"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" newLeft.value, newLeft.priority, newLeft.left, newRight);\n                }\n                return new TreapNode(node"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":".key, node.value, node.priority, newLeft, node.right);\n            } else {\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"                TreapNode newRight = insertOrReplace(node.right, key, value);\n                if (new"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Right == node.right) return node;\n                if (newRight.priority \u003e node.priority) {\n                    // Rotate left\n                    "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"TreapNode newLeft = new TreapNode(node.key, node.value, node.priority, node.left, newRight."},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"left);\n                    return new TreapNode(newRight.key, newRight.value, newRight.priority"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":", newLeft, newRight.right);\n                }\n                return new TreapNode(node.key,"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" node.value, node.priority, node.left, newRight);\n            }\n        }\n\n        private static TreapNode delete(Tre"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"apNode node, String key) {\n            if (node == null) {\n                return null;\n            "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"}\n            int cmp = key.compareTo(node.key);\n            if (cmp == 0)"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" {\n                return merge(node.left, node.right);\n            } else if (cmp \u003c 0) {\n                Treap"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"Node newLeft = delete(node.left, key);\n                if (newLeft == node.left) return node;\n                return new Tre"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"apNode(node.key, node.value, node.priority, newLeft, node.right);\n            } else {\n                "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"TreapNode newRight = delete(node.right, key);\n                if (newRight == node.right"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":") return node;\n                return new TreapNode(node.key, node.value, node.priority, node.left, newRight);"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n            }\n        }\n\n        private static TreapNode merge(TreapNode left, TreapNode right"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":") {\n            if (left == null) return right;\n            if (right == null) return left;"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n            if (left.priority \u003e right.priority) {\n                TreapNode mergedRight = merge(left"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":".right, right);\n                return new TreapNode(left.key, left.value, left.priority"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":", left.left, mergedRight);\n            } else {\n                TreapNode mergedLeft = merge(left"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":", right.left);\n                return new TreapNode(right.key, right.value, right.priority, mergedLeft, right"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":".right);\n            }\n        }\n\n        static String get(TreapNode node, String key) {"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n            while (node != null) {\n                int cmp = key.compareTo(node.key);\n                if (cmp == 0"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":") return node.value;\n                node = cmp \u003c 0 ? node.left : node.right;\n            }\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"            return null;\n        }\n\n        static int countRange(TreapNode root, String lo, String hi"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":") {\n            if (root == null) return 0;\n            return countLessOrEqual(root,"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" hi) - countStrictlyLess(root, lo);\n        }\n\n        private static int countStrictlyLess(TreapNode node, String"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" key) {\n            int count = 0;\n            while (node != null) {\n                int cmp"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" = node.key.compareTo(key);\n                if (cmp \u003c 0) {\n                    count += "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"1 + TreapNode.size(node.left);\n                    node = node.right;\n                } else"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" {\n                    node = node.left;\n                }\n            }\n            return count;\n        }\n\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"        private static int countLessOrEqual(TreapNode node, String key) {\n            int count = "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"0;\n            while (node != null) {\n                int cmp = node.key.compareTo(key"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":");\n                if (cmp \u003c= 0) {\n                    count += 1 + TreapNode.size("},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"node.left);\n                    node = node.right;\n                } else {\n                    node = node.left"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":";\n                }\n            }\n            return count;\n        }\n\n        static void collect(TreapNode"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" node, Map\u003cString, String\u003e out) {\n            if (node == null) return;\n            collect"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"(node.left, out);\n            out.put(node.key, node.value);\n            collect"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"(node.right, out);\n        }\n    }\n\n    private static final class IntSet {\n        "},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"private int[] table;\n        private int mask;\n        private int size;\n        private int threshold;\n\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"        IntSet(int initialCapacity) {\n            int cap = Integer.highestOneBit(Math.max(1"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"6, initialCapacity - 1)) \u003c\u003c 1;\n            table = new int[cap];\n            mask"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" = cap - 1;\n            threshold = (cap * 7) \u003e\u003e\u003e 3;\n        }\n\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"        boolean add(int key) {\n            // key != 0 is guaranteed by R14 before R17\n            int[]"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" tab = table;\n            int m = mask;\n            int idx = mix(key) \u0026 m;\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"            while (true) {\n                int cur = tab[idx];\n                if (cur == 0)"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" {\n                    tab[idx] = key;\n                    if (++size \u003e= threshold) {\n                        rehash();"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n                    }\n                    return true;\n                }\n                if (cur == key) {\n                    return false"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":";\n                }\n                idx = (idx + 1) \u0026 m;\n            }\n        }\n\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"        private void rehash() {\n            int[] oldTab = table;\n            int newCap = oldTab"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":".length \u003c\u003c 1;\n            int[] newTab = new int[newCap];\n            int newMask"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" = newCap - 1;\n            for (int k : oldTab) {\n                if (k !="},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":" 0) {\n                    int idx = mix(k) \u0026 newMask;\n                    while (newTab["},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"idx] != 0) {\n                        idx = (idx + 1) \u0026 newMask;\n                    }"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n                    newTab[idx] = k;\n                }\n            }\n            table = newTab;\n"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"            mask = newMask;\n            threshold = (newCap * 7) \u003e\u003e\u003e 3;\n        }"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n\n        private static int mix(int x) {\n            x ^= x \u003e\u003e\u003e 16;\n            x *= 0x7feb"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"352d;\n            x ^= x \u003e\u003e\u003e 15;\n            x *= 0x84"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"6ca68b;\n            x ^= x \u003e\u003e\u003e 16;\n            return x;\n        }"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":"\n    }\n}\n```"},"finish_reason":null}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[{"index":0,"delta":{"content":""},"finish_reason":"stop"}]}
+
+data: {"id":"msg_1eca7a234ca7b2188503a3f6","object":"chat.completion.chunk","created":1795546977,"model":"gemini-4-carbon","choices":[],"usage":{"prompt_tokens":15142,"completion_tokens":12794,"total_tokens":27936,"prompt_tokens_details":{"cached_tokens":13088}}}
+
+data: [DONE]
+

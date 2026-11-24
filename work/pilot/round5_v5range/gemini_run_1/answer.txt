@@ -1,0 +1,1163 @@
+```java
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public final class WalRecovery {
+    private WalRecovery() {}
+
+    /** Recovers the store from a log. Must not modify {@code log}. */
+    public static Result recover(byte[] log) throws WalException {
+        // R1
+        if (log == null) {
+            throw new NullPointerException();
+        }
+        int L = log.length;
+        // R2
+        if (L == 0) {
+            return new Result(Collections.emptyMap(), Collections.emptyList(),
+                    Collections.emptyList(), Collections.emptyList(), 0, false);
+        }
+        // R3
+        if (L < 4) {
+            for (int i = 0; i < L; i++) {
+                if (log[i] != MAGIC[i]) {
+                    throw new WalException(Code.BAD_MAGIC, 0);
+                }
+            }
+            return new Result(Collections.emptyMap(), Collections.emptyList(),
+                    Collections.emptyList(), Collections.emptyList(), 0, true);
+        }
+        // R4
+        if (log[0] != MAGIC[0] || log[1] != MAGIC[1] || log[2] != MAGIC[2] || log[3] != MAGIC[3]) {
+            throw new WalException(Code.BAD_MAGIC, 0);
+        }
+
+        // Phase 1: frames
+        int p = 4;
+        boolean tornTail = false;
+        while (true) {
+            // R5
+            if (p == L) {
+                break;
+            }
+            // R6
+            if (L - p <= 2) {
+                tornTail = true;
+                break;
+            }
+            int type = log[p] & 0xFF;
+            // R7
+            if (type < 1 || type > 10) {
+                throw new WalException(Code.UNKNOWN_TYPE, p);
+            }
+            int n = u16(log, p + 1);
+            // R8
+            if (n > 1024) {
+                throw new WalException(Code.RECORD_TOO_LARGE, p);
+            }
+            int nextP = p + 5 + n;
+            // R9
+            if (nextP > L) {
+                tornTail = true;
+                break;
+            }
+            // R10
+            if (!checkFletcher16(log, p, n)) {
+                if (nextP == L) {
+                    tornTail = true;
+                    break;
+                } else {
+                    throw new WalException(Code.CHECKSUM_MISMATCH, p);
+                }
+            }
+            // R11
+            p = nextP;
+        }
+        int validLength = p;
+
+        // Phase 2: replay
+        IntSet seenTxns = new IntSet(1024);
+        PersistentBTree currentState = new PersistentBTree();
+
+        Txn[] openTxns = new Txn[4];
+        int openCount = 0;
+
+        Txn[] pool = new Txn[4];
+        for (int i = 0; i < 4; i++) {
+            pool[i] = new Txn();
+        }
+        int poolCount = 4;
+
+        List<Long> committed = new ArrayList<>();
+        List<Long> aborted = new ArrayList<>();
+
+        int pos = 4;
+        while (pos < validLength) {
+            int type = log[pos] & 0xFF;
+            int n = u16(log, pos + 1);
+            int pay = pos + 3;
+
+            // R13: Payload layout
+            int k = 0, v = 0, f = 0, c = 0, k1 = 0, k2 = 0;
+            switch (type) {
+                case 1, 4, 5 -> {
+                    if (n != 4) throw new WalException(Code.MALFORMED_PAYLOAD, pos);
+                }
+                case 2 -> {
+                    if (n < 5) throw new WalException(Code.MALFORMED_PAYLOAD, pos);
+                    k = log[pay + 4] & 0xFF;
+                    if (n < 7 + k) throw new WalException(Code.MALFORMED_PAYLOAD, pos);
+                    v = u16(log, pay + 5 + k);
+                    if (n != 7 + k + v) throw new WalException(Code.MALFORMED_PAYLOAD, pos);
+                }
+                case 3 -> {
+                    if (n < 5) throw new WalException(Code.MALFORMED_PAYLOAD, pos);
+                    k = log[pay + 4] & 0xFF;
+                    if (n != 5 + k) throw new WalException(Code.MALFORMED_PAYLOAD, pos);
+                }
+                case 6, 7 -> {
+                    if (n != 5) throw new WalException(Code.MALFORMED_PAYLOAD, pos);
+                }
+                case 8 -> {
+                    if (n < 1) throw new WalException(Code.MALFORMED_PAYLOAD, pos);
+                    c = log[pay] & 0xFF;
+                    if (n != 1 + 4 * c) throw new WalException(Code.MALFORMED_PAYLOAD, pos);
+                }
+                case 9 -> {
+                    if (n < 6) throw new WalException(Code.MALFORMED_PAYLOAD, pos);
+                    k = log[pay + 4] & 0xFF;
+                    if (n < 6 + k) throw new WalException(Code.MALFORMED_PAYLOAD, pos);
+                    f = log[pay + 5 + k] & 0xFF;
+                    if (f == 0) {
+                        if (n != 6 + k) throw new WalException(Code.MALFORMED_PAYLOAD, pos);
+                    } else if (f == 1) {
+                        if (n < 8 + k) throw new WalException(Code.MALFORMED_PAYLOAD, pos);
+                        v = u16(log, pay + 6 + k);
+                        if (n != 8 + k + v) throw new WalException(Code.MALFORMED_PAYLOAD, pos);
+                    } else {
+                        throw new WalException(Code.MALFORMED_PAYLOAD, pos);
+                    }
+                }
+                case 10 -> {
+                    if (n < 6) throw new WalException(Code.MALFORMED_PAYLOAD, pos);
+                    k1 = log[pay + 4] & 0xFF;
+                    if (n < 6 + k1) throw new WalException(Code.MALFORMED_PAYLOAD, pos);
+                    k2 = log[pay + 5 + k1] & 0xFF;
+                    if (n != 10 + k1 + k2) throw new WalException(Code.MALFORMED_PAYLOAD, pos);
+                }
+            }
+
+            // R14: Txn ids
+            long txnId = 0;
+            if (type == 8) {
+                for (int i = 0; i < c; i++) {
+                    if (u32(log, pay + 1 + 4 * i) == 0) {
+                        throw new WalException(Code.BAD_TXN_ID, pos);
+                    }
+                }
+            } else {
+                txnId = u32(log, pay);
+                if (txnId == 0) {
+                    throw new WalException(Code.BAD_TXN_ID, pos);
+                }
+            }
+
+            // R15: Key
+            if (type == 2 || type == 3 || type == 9) {
+                checkKey(log, pay + 5, k, pos);
+            } else if (type == 10) {
+                checkKey(log, pay + 5, k1, pos);
+                checkKey(log, pay + 6 + k1, k2, pos);
+            }
+
+            // R16: Value
+            if (type == 2) {
+                checkValue(log, pay + 7 + k, v, pos);
+            } else if (type == 9 && f == 1) {
+                checkValue(log, pay + 8 + k, v, pos);
+            }
+
+            // R16a: Name
+            int name = 0;
+            if (type == 6 || type == 7) {
+                name = log[pay + 4] & 0xFF;
+                if (name < 0x21 || name > 0x7E) {
+                    throw new WalException(Code.BAD_NAME, pos);
+                }
+            }
+
+            // R17 & R18: BEGIN checks
+            if (type == 1) {
+                if (!seenTxns.add((int) txnId)) {
+                    throw new WalException(Code.DUPLICATE_TXN, pos);
+                }
+                if (openCount == 4) {
+                    throw new WalException(Code.TOO_MANY_OPEN, pos);
+                }
+            }
+
+            // R19: Open check
+            Txn txn = null;
+            int openIdx = -1;
+            if (type != 1 && type != 8) {
+                for (int i = 0; i < openCount; i++) {
+                    if (openTxns[i].id == txnId) {
+                        txn = openTxns[i];
+                        openIdx = i;
+                        break;
+                    }
+                }
+                if (txn == null) {
+                    throw new WalException(Code.TXN_NOT_OPEN, pos);
+                }
+            }
+
+            // R19a: Write limit
+            if (type == 2 || type == 3) {
+                if (txn.writeCount == 8) {
+                    throw new WalException(Code.TXN_TOO_LARGE, pos);
+                }
+            }
+
+            // R19b: Savepoint check
+            if (type == 7) {
+                if (txn.spPos[name - 0x21] == -1) {
+                    throw new WalException(Code.NO_SAVEPOINT, pos);
+                }
+            }
+
+            // R19c: Checkpoint check
+            if (type == 8) {
+                if (c != openCount) {
+                    throw new WalException(Code.CHECKPOINT_MISMATCH, pos);
+                }
+                for (int i = 0; i < c; i++) {
+                    long listedId = u32(log, pay + 1 + 4 * i);
+                    if (listedId != openTxns[i].id) {
+                        throw new WalException(Code.CHECKPOINT_MISMATCH, pos);
+                    }
+                }
+            }
+
+            // R19d: Read check & R23d: READ action
+            if (type == 9) {
+                String keyStr = asciiString(log, pay + 5, k);
+                int lastWriteIdx = -1;
+                for (int i = txn.writeCount - 1; i >= 0; i--) {
+                    if (txn.writeKeys[i].equals(keyStr)) {
+                        lastWriteIdx = i;
+                        break;
+                    }
+                }
+                long viewVal;
+                if (lastWriteIdx >= 0) {
+                    viewVal = txn.writeIsPut[lastWriteIdx] ? txn.writeValPosLen[lastWriteIdx] : -1L;
+                } else {
+                    viewVal = txn.snapshot.get(keyStr);
+                }
+
+                if (f == 0) {
+                    if (viewVal != -1L) {
+                        throw new WalException(Code.READ_MISMATCH, pos);
+                    }
+                } else {
+                    if (viewVal == -1L) {
+                        throw new WalException(Code.READ_MISMATCH, pos);
+                    }
+                    int vPos = (int) (viewVal >>> 32);
+                    int vLen = (int) viewVal;
+                    if (vLen != v || !Arrays.equals(log, vPos, vPos + vLen, log, pay + 8 + k, pay + 8 + k + v)) {
+                        throw new WalException(Code.READ_MISMATCH, pos);
+                    }
+                }
+                txn.readKeys.add(keyStr);
+            }
+
+            // R19e: Range check & R23e: RANGE action
+            if (type == 10) {
+                String lo = asciiString(log, pay + 5, k1);
+                String hi = asciiString(log, pay + 6 + k1, k2);
+                long expectedCount = u32(log, pay + 6 + k1 + k2);
+
+                int actualCount;
+                if (lo.compareTo(hi) > 0) {
+                    actualCount = 0;
+                } else {
+                    actualCount = txn.snapshot.countRange(lo, hi);
+                    int uniqueCount = 0;
+                    String[] seen = txn.tempKeys;
+                    for (int i = txn.writeCount - 1; i >= 0; i--) {
+                        String wk = txn.writeKeys[i];
+                        if (wk.compareTo(lo) >= 0 && wk.compareTo(hi) <= 0) {
+                            boolean alreadySeen = false;
+                            for (int j = 0; j < uniqueCount; j++) {
+                                if (seen[j].equals(wk)) {
+                                    alreadySeen = true;
+                                    break;
+                                }
+                            }
+                            if (!alreadySeen) {
+                                seen[uniqueCount++] = wk;
+                                boolean inSnap = txn.snapshot.get(wk) != -1L;
+                                boolean isPut = txn.writeIsPut[i];
+                                if (isPut && !inSnap) {
+                                    actualCount++;
+                                } else if (!isPut && inSnap) {
+                                    actualCount--;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if ((long) actualCount != expectedCount) {
+                    throw new WalException(Code.RANGE_MISMATCH, pos);
+                }
+                txn.rangeLos.add(lo);
+                txn.rangeHis.add(hi);
+            }
+
+            // Remaining Actions (R20 to R23c)
+            switch (type) {
+                case 1 -> { // R20: BEGIN
+                    Txn newTxn = pool[--poolCount];
+                    newTxn.reset(txnId, currentState);
+                    int ins = 0;
+                    while (ins < openCount && openTxns[ins].id < txnId) {
+                        ins++;
+                    }
+                    for (int i = openCount; i > ins; i--) {
+                        openTxns[i] = openTxns[i - 1];
+                    }
+                    openTxns[ins] = newTxn;
+                    openCount++;
+                }
+                case 2 -> { // R21: PUT
+                    String keyStr = asciiString(log, pay + 5, k);
+                    int idx = txn.writeCount++;
+                    txn.writeKeys[idx] = keyStr;
+                    txn.writeIsPut[idx] = true;
+                    txn.writeValPosLen[idx] = (((long) (pay + 7 + k)) << 32) | (v & 0xFFFFFFFFL);
+                }
+                case 3 -> { // R21: DELETE
+                    String keyStr = asciiString(log, pay + 5, k);
+                    int idx = txn.writeCount++;
+                    txn.writeKeys[idx] = keyStr;
+                    txn.writeIsPut[idx] = false;
+                    txn.writeValPosLen[idx] = -1L;
+                }
+                case 4 -> { // R22: COMMIT
+                    for (int i = openIdx; i < openCount - 1; i++) {
+                        openTxns[i] = openTxns[i + 1];
+                    }
+                    openTxns[--openCount] = null;
+
+                    if (txn.conflicted) {
+                        aborted.add(txn.id);
+                    } else {
+                        for (int i = 0; i < txn.writeCount; i++) {
+                            String wk = txn.writeKeys[i];
+                            if (txn.writeIsPut[i]) {
+                                currentState = currentState.put(wk, txn.writeValPosLen[i]);
+                            } else {
+                                currentState = currentState.remove(wk);
+                            }
+                        }
+                        committed.add(txn.id);
+
+                        // Propagate conflicts to remaining open transactions (whose BEGIN was earlier)
+                        if (txn.writeCount > 0 && openCount > 0) {
+                            for (int o = 0; o < openCount; o++) {
+                                Txn other = openTxns[o];
+                                if (other.conflicted) continue;
+                                if (other.readKeys.isEmpty() && other.rangeLos.isEmpty()) continue;
+
+                                for (int w = 0; w < txn.writeCount && !other.conflicted; w++) {
+                                    String wk = txn.writeKeys[w];
+                                    if (!other.readKeys.isEmpty() && other.readKeys.contains(wk)) {
+                                        other.conflicted = true;
+                                        break;
+                                    }
+                                    int rSize = other.rangeLos.size();
+                                    for (int r = 0; r < rSize; r++) {
+                                        String rLo = other.rangeLos.get(r);
+                                        String rHi = other.rangeHis.get(r);
+                                        if (wk.compareTo(rLo) >= 0 && wk.compareTo(rHi) <= 0) {
+                                            other.conflicted = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    pool[poolCount++] = txn;
+                }
+                case 5 -> { // R23: ABORT
+                    for (int i = openIdx; i < openCount - 1; i++) {
+                        openTxns[i] = openTxns[i + 1];
+                    }
+                    openTxns[--openCount] = null;
+                    aborted.add(txn.id);
+                    pool[poolCount++] = txn;
+                }
+                case 6 -> { // R23a: SAVEPOINT
+                    int spIdx = name - 0x21;
+                    txn.spPos[spIdx] = txn.writeCount;
+                    txn.spOffset[spIdx] = pos;
+                }
+                case 7 -> { // R23b: ROLLBACK
+                    int spIdx = name - 0x21;
+                    int targetPos = txn.spPos[spIdx];
+                    int targetOffset = txn.spOffset[spIdx];
+                    for (int i = targetPos; i < txn.writeCount; i++) {
+                        txn.writeKeys[i] = null;
+                    }
+                    txn.writeCount = targetPos;
+                    for (int i = 0; i < 94; i++) {
+                        if (i != spIdx && txn.spPos[i] != -1 && txn.spOffset[i] > targetOffset) {
+                            txn.spPos[i] = -1;
+                        }
+                    }
+                }
+                case 8 -> {
+                    // R23c: CHECKPOINT - nothing changes
+                }
+            }
+
+            pos += 5 + n;
+        }
+
+        // R26: incomplete transactions (already maintained in ascending order of id)
+        List<Long> incomplete = new ArrayList<>(openCount);
+        for (int i = 0; i < openCount; i++) {
+            incomplete.add(openTxns[i].id);
+        }
+
+        // R24: materialize final state
+        Map<String, String> finalState = HashMap.newHashMap(currentState.size());
+        currentState.forEach((kStr, valPosLen) -> {
+            int vPos = (int) (valPosLen >>> 32);
+            int vLen = (int) valPosLen;
+            finalState.put(kStr, asciiString(log, vPos, vLen));
+        });
+
+        return new Result(finalState, committed, aborted, incomplete, validLength, tornTail);
+    }
+
+    private static final byte[] MAGIC = {'W', 'A', 'L', '1'};
+
+    private static int u16(byte[] log, int offset) {
+        return ((log[offset] & 0xFF) << 8) | (log[offset + 1] & 0xFF);
+    }
+
+    private static long u32(byte[] log, int offset) {
+        return ((long) (log[offset] & 0xFF) << 24)
+                | ((long) (log[offset + 1] & 0xFF) << 16)
+                | ((long) (log[offset + 2] & 0xFF) << 8)
+                | ((long) (log[offset + 3] & 0xFF));
+    }
+
+    private static boolean checkFletcher16(byte[] log, int p, int n) {
+        int end = p + 3 + n;
+        int s1 = 0;
+        int s2 = 0;
+        for (int i = p; i < end; i++) {
+            s1 += log[i] & 0xFF;
+            if (s1 >= 255) s1 -= 255;
+            s2 += s1;
+            if (s2 >= 255) s2 -= 255;
+        }
+        int storedS2 = log[end] & 0xFF;
+        int storedS1 = log[end + 1] & 0xFF;
+        return s2 == storedS2 && s1 == storedS1;
+    }
+
+    private static void checkKey(byte[] log, int offset, int len, int recOffset) throws WalException {
+        if (len < 1 || len > 32) {
+            throw new WalException(Code.BAD_KEY, recOffset);
+        }
+        for (int i = 0; i < len; i++) {
+            int b = log[offset + i] & 0xFF;
+            if (b < 0x21 || b > 0x7E) {
+                throw new WalException(Code.BAD_KEY, recOffset);
+            }
+        }
+    }
+
+    private static void checkValue(byte[] log, int offset, int len, int recOffset) throws WalException {
+        for (int i = 0; i < len; i++) {
+            int b = log[offset + i] & 0xFF;
+            if (b < 0x20 || b > 0x7E) {
+                throw new WalException(Code.BAD_VALUE, recOffset);
+            }
+        }
+    }
+
+    private static String asciiString(byte[] log, int offset, int len) {
+        if (len == 0) return "";
+        return new String(log, offset, len, StandardCharsets.ISO_8859_1);
+    }
+
+    private static final class Txn {
+        long id;
+        PersistentBTree snapshot;
+        final String[] writeKeys = new String[8];
+        final boolean[] writeIsPut = new boolean[8];
+        final long[] writeValPosLen = new long[8];
+        int writeCount;
+
+        final int[] spPos = new int[94];
+        final int[] spOffset = new int[94];
+
+        final HashSetString readKeys = new HashSetString();
+        final ArrayList<String> rangeLos = new ArrayList<>();
+        final ArrayList<String> rangeHis = new ArrayList<>();
+        boolean conflicted;
+
+        final String[] tempKeys = new String[8];
+
+        Txn() {
+            Arrays.fill(spPos, -1);
+        }
+
+        void reset(long id, PersistentBTree snapshot) {
+            this.id = id;
+            this.snapshot = snapshot;
+            for (int i = 0; i < writeCount; i++) {
+                writeKeys[i] = null;
+            }
+            this.writeCount = 0;
+            Arrays.fill(spPos, -1);
+            this.readKeys.clear();
+            this.rangeLos.clear();
+            this.rangeHis.clear();
+            this.conflicted = false;
+        }
+    }
+
+    /** Compact hash set for Strings that avoids allocation on clear when empty/reused. */
+    private static final class HashSetString {
+        private String[] keys = new String[16];
+        private int size = 0;
+        private int mask = 15;
+
+        void clear() {
+            if (size > 0) {
+                if (keys.length > 64) {
+                    keys = new String[16];
+                    mask = 15;
+                } else {
+                    Arrays.fill(keys, null);
+                }
+                size = 0;
+            }
+        }
+
+        boolean isEmpty() {
+            return size == 0;
+        }
+
+        void add(String k) {
+            if ((size + 1) * 4 > keys.length * 3) {
+                rehash();
+            }
+            int idx = mix(k.hashCode()) & mask;
+            while (true) {
+                String cur = keys[idx];
+                if (cur == null) {
+                    keys[idx] = k;
+                    size++;
+                    return;
+                }
+                if (cur.equals(k)) {
+                    return;
+                }
+                idx = (idx + 1) & mask;
+            }
+        }
+
+        boolean contains(String k) {
+            if (size == 0) return false;
+            int idx = mix(k.hashCode()) & mask;
+            while (true) {
+                String cur = keys[idx];
+                if (cur == null) return false;
+                if (cur.equals(k)) return true;
+                idx = (idx + 1) & mask;
+            }
+        }
+
+        private void rehash() {
+            int newCap = keys.length << 1;
+            String[] newKeys = new String[newCap];
+            int newMask = newCap - 1;
+            for (String k : keys) {
+                if (k != null) {
+                    int idx = mix(k.hashCode()) & newMask;
+                    while (newKeys[idx] != null) {
+                        idx = (idx + 1) & newMask;
+                    }
+                    newKeys[idx] = k;
+                }
+            }
+            keys = newKeys;
+            mask = newMask;
+        }
+
+        private static int mix(int h) {
+            h ^= h >>> 16;
+            h *= 0x85ebca6b;
+            h ^= h >>> 13;
+            return h;
+        }
+    }
+
+    /** Primitive open-addressing int hash set for tracking non-zero u32 transaction IDs. */
+    private static final class IntSet {
+        private int[] table;
+        private int size;
+        private int mask;
+        private int threshold;
+
+        IntSet(int initialCap) {
+            int cap = Integer.highestOneBit(Math.max(16, initialCap) - 1) << 1;
+            table = new int[cap];
+            mask = cap - 1;
+            threshold = (int) (cap * 0.7f);
+        }
+
+        boolean add(int val) {
+            int idx = mix(val) & mask;
+            while (true) {
+                int cur = table[idx];
+                if (cur == 0) {
+                    table[idx] = val;
+                    if (++size >= threshold) {
+                        rehash();
+                    }
+                    return true;
+                }
+                if (cur == val) {
+                    return false;
+                }
+                idx = (idx + 1) & mask;
+            }
+        }
+
+        private void rehash() {
+            int newCap = table.length << 1;
+            int[] newTable = new int[newCap];
+            int newMask = newCap - 1;
+            for (int val : table) {
+                if (val != 0) {
+                    int idx = mix(val) & newMask;
+                    while (newTable[idx] != 0) {
+                        idx = (idx + 1) & newMask;
+                    }
+                    newTable[idx] = val;
+                }
+            }
+            table = newTable;
+            mask = newMask;
+            threshold = (int) (newCap * 0.7f);
+        }
+
+        private static int mix(int x) {
+            x ^= x >>> 16;
+            x *= 0x7feb352d;
+            x ^= x >>> 15;
+            x *= 0x846ca68b;
+            x ^= x >>> 16;
+            return x;
+        }
+    }
+
+    /**
+     * Immutable order-statistic B+ tree supporting O(1) snapshots, O(log N) lookup,
+     * O(log N) updates via path-copying, and O(log N) range counting.
+     */
+    private static final class PersistentBTree {
+        private static final int MAX = 32;
+        private static final int MIN = 16;
+
+        @FunctionalInterface
+        interface EntryConsumer {
+            void accept(String key, long value);
+        }
+
+        private abstract static class Node {
+            final int totalKeys;
+
+            Node(int totalKeys) {
+                this.totalKeys = totalKeys;
+            }
+
+            abstract String minKey();
+        }
+
+        private static final class Leaf extends Node {
+            final String[] keys;
+            final long[] vals;
+
+            Leaf(String[] keys, long[] vals) {
+                super(keys.length);
+                this.keys = keys;
+                this.vals = vals;
+            }
+
+            @Override
+            String minKey() {
+                return keys[0];
+            }
+        }
+
+        private static final class Internal extends Node {
+            final String[] sep; // length = children.length - 1; sep[i] is minKey of subtree children[i + 1]
+            final Node[] children;
+
+            Internal(String[] sep, Node[] children, int totalKeys) {
+                super(totalKeys);
+                this.sep = sep;
+                this.children = children;
+            }
+
+            @Override
+            String minKey() {
+                return children[0].minKey();
+            }
+        }
+
+        private record Split(Node left, String sep, Node right) {}
+
+        private final Node root;
+
+        PersistentBTree() {
+            this.root = null;
+        }
+
+        private PersistentBTree(Node root) {
+            this.root = root;
+        }
+
+        int size() {
+            return root == null ? 0 : root.totalKeys;
+        }
+
+        long get(String key) {
+            Node curr = root;
+            if (curr == null) return -1L;
+            while (curr instanceof Internal in) {
+                int idx = findChild(in.sep, key);
+                curr = in.children[idx];
+            }
+            Leaf leaf = (Leaf) curr;
+            int pos = binarySearch(leaf.keys, key);
+            return pos >= 0 ? leaf.vals[pos] : -1L;
+        }
+
+        int countRange(String lo, String hi) {
+            if (root == null) return 0;
+            return countLessOrEqual(hi) - countStrictlyLess(lo);
+        }
+
+        private int countStrictlyLess(String key) {
+            Node curr = root;
+            int rank = 0;
+            while (curr instanceof Internal in) {
+                int idx = findChild(in.sep, key);
+                for (int i = 0; i < idx; i++) {
+                    rank += in.children[i].totalKeys;
+                }
+                curr = in.children[idx];
+            }
+            Leaf leaf = (Leaf) curr;
+            int pos = binarySearch(leaf.keys, key);
+            return rank + (pos >= 0 ? pos : -pos - 1);
+        }
+
+        private int countLessOrEqual(String key) {
+            Node curr = root;
+            int rank = 0;
+            while (curr instanceof Internal in) {
+                int idx = findChild(in.sep, key);
+                for (int i = 0; i < idx; i++) {
+                    rank += in.children[i].totalKeys;
+                }
+                curr = in.children[idx];
+            }
+            Leaf leaf = (Leaf) curr;
+            int pos = binarySearch(leaf.keys, key);
+            return rank + (pos >= 0 ? pos + 1 : -pos - 1);
+        }
+
+        PersistentBTree put(String key, long val) {
+            if (root == null) {
+                return new PersistentBTree(new Leaf(new String[]{key}, new long[]{val}));
+            }
+            Object res = putRec(root, key, val);
+            if (res instanceof Node n) {
+                return n == root ? this : new PersistentBTree(n);
+            }
+            Split sp = (Split) res;
+            Internal newRoot = new Internal(
+                    new String[]{sp.sep},
+                    new Node[]{sp.left, sp.right},
+                    sp.left.totalKeys + sp.right.totalKeys
+            );
+            return new PersistentBTree(newRoot);
+        }
+
+        private static Object putRec(Node node, String key, long val) {
+            if (node instanceof Leaf leaf) {
+                int pos = binarySearch(leaf.keys, key);
+                if (pos >= 0) {
+                    if (leaf.vals[pos] == val) return leaf;
+                    long[] nVals = leaf.vals.clone();
+                    nVals[pos] = val;
+                    return new Leaf(leaf.keys, nVals);
+                }
+                int ins = -pos - 1;
+                int len = leaf.keys.length;
+                String[] nKeys = new String[len + 1];
+                long[] nVals = new long[len + 1];
+                System.arraycopy(leaf.keys, 0, nKeys, 0, ins);
+                nKeys[ins] = key;
+                System.arraycopy(leaf.keys, ins, nKeys, ins + 1, len - ins);
+                System.arraycopy(leaf.vals, 0, nVals, 0, ins);
+                nVals[ins] = val;
+                System.arraycopy(leaf.vals, ins, nVals, ins + 1, len - ins);
+
+                if (nKeys.length <= MAX) {
+                    return new Leaf(nKeys, nVals);
+                }
+                int mid = nKeys.length >>> 1;
+                Leaf left = new Leaf(Arrays.copyOfRange(nKeys, 0, mid), Arrays.copyOfRange(nVals, 0, mid));
+                Leaf right = new Leaf(Arrays.copyOfRange(nKeys, mid, nKeys.length), Arrays.copyOfRange(nVals, mid, nVals.length));
+                return new Split(left, right.keys[0], right);
+            } else {
+                Internal in = (Internal) node;
+                int idx = findChild(in.sep, key);
+                Node oldChild = in.children[idx];
+                Object res = putRec(oldChild, key, val);
+                if (res == oldChild) return in;
+                if (res instanceof Node newChild) {
+                    Node[] nChildren = in.children.clone();
+                    nChildren[idx] = newChild;
+                    int nTotal = in.totalKeys - oldChild.totalKeys + newChild.totalKeys;
+                    return new Internal(in.sep, nChildren, nTotal);
+                }
+                Split sp = (Split) res;
+                int cLen = in.children.length;
+                Node[] nChildren = new Node[cLen + 1];
+                System.arraycopy(in.children, 0, nChildren, 0, idx);
+                nChildren[idx] = sp.left;
+                nChildren[idx + 1] = sp.right;
+                System.arraycopy(in.children, idx + 1, nChildren, idx + 2, cLen - idx - 1);
+
+                String[] nSep = new String[in.sep.length + 1];
+                System.arraycopy(in.sep, 0, nSep, 0, idx);
+                nSep[idx] = sp.sep;
+                System.arraycopy(in.sep, idx, nSep, idx + 1, in.sep.length - idx);
+
+                int nTotal = in.totalKeys + 1;
+                if (nChildren.length <= MAX) {
+                    return new Internal(nSep, nChildren, nTotal);
+                }
+                int mid = nChildren.length >>> 1;
+                Node[] leftC = Arrays.copyOfRange(nChildren, 0, mid);
+                String[] leftS = Arrays.copyOfRange(nSep, 0, mid - 1);
+                int leftTotal = 0;
+                for (Node c : leftC) leftTotal += c.totalKeys;
+
+                Node[] rightC = Arrays.copyOfRange(nChildren, mid, nChildren.length);
+                String[] rightS = Arrays.copyOfRange(nSep, mid, nSep.length);
+                int rightTotal = nTotal - leftTotal;
+
+                return new Split(
+                        new Internal(leftS, leftC, leftTotal),
+                        nSep[mid - 1],
+                        new Internal(rightS, rightC, rightTotal)
+                );
+            }
+        }
+
+        PersistentBTree remove(String key) {
+            if (root == null) return this;
+            Node newRoot = removeRec(root, key);
+            if (newRoot == root) return this;
+            if (newRoot == null) return new PersistentBTree(null);
+            if (newRoot instanceof Internal in && in.children.length == 1) {
+                return new PersistentBTree(in.children[0]);
+            }
+            return new PersistentBTree(newRoot);
+        }
+
+        private static Node removeRec(Node node, String key) {
+            if (node instanceof Leaf leaf) {
+                int pos = binarySearch(leaf.keys, key);
+                if (pos < 0) return leaf;
+                int len = leaf.keys.length;
+                if (len == 1) return null;
+                String[] nKeys = new String[len - 1];
+                long[] nVals = new long[len - 1];
+                System.arraycopy(leaf.keys, 0, nKeys, 0, pos);
+                System.arraycopy(leaf.keys, pos + 1, nKeys, pos, len - pos - 1);
+                System.arraycopy(leaf.vals, 0, nVals, 0, pos);
+                System.arraycopy(leaf.vals, pos + 1, nVals, pos, len - pos - 1);
+                return new Leaf(nKeys, nVals);
+            }
+
+            Internal in = (Internal) node;
+            int idx = findChild(in.sep, key);
+            Node oldChild = in.children[idx];
+            Node newChild = removeRec(oldChild, key);
+            if (newChild == oldChild) return in;
+
+            int cLen = in.children.length;
+            int nTotal = in.totalKeys - 1;
+
+            if (newChild == null) {
+                // Only happens if child had 1 element (meaning parent had very few children or MIN=1)
+                if (cLen == 1) return null;
+                Node[] nChildren = new Node[cLen - 1];
+                System.arraycopy(in.children, 0, nChildren, 0, idx);
+                System.arraycopy(in.children, idx + 1, nChildren, idx, cLen - idx - 1);
+                String[] nSep = buildSeparators(nChildren);
+                return new Internal(nSep, nChildren, nTotal);
+            }
+
+            int childSize = newChild instanceof Leaf l ? l.keys.length : ((Internal) newChild).children.length;
+            if (childSize >= MIN) {
+                Node[] nChildren = in.children.clone();
+                nChildren[idx] = newChild;
+                String[] nSep = in.sep;
+                if (idx > 0) {
+                    String minK = newChild.minKey();
+                    if (!in.sep[idx - 1].equals(minK)) {
+                        nSep = in.sep.clone();
+                        nSep[idx - 1] = minK;
+                    }
+                }
+                return new Internal(nSep, nChildren, nTotal);
+            }
+
+            // Rebalance: borrow from left sibling, borrow from right sibling, or merge
+            if (idx > 0) {
+                Node leftSib = in.children[idx - 1];
+                int leftSize = leftSib instanceof Leaf l ? l.keys.length : ((Internal) leftSib).children.length;
+                if (leftSize > MIN) {
+                    Node[] nChildren = in.children.clone();
+                    if (newChild instanceof Leaf rLeaf) {
+                        Leaf lLeaf = (Leaf) leftSib;
+                        String movedK = lLeaf.keys[leftSize - 1];
+                        long movedV = lLeaf.vals[leftSize - 1];
+                        Leaf nLeft = new Leaf(Arrays.copyOf(lLeaf.keys, leftSize - 1), Arrays.copyOf(lLeaf.vals, leftSize - 1));
+                        String[] rKeys = new String[childSize + 1];
+                        long[] rVals = new long[childSize + 1];
+                        rKeys[0] = movedK;
+                        rVals[0] = movedV;
+                        System.arraycopy(rLeaf.keys, 0, rKeys, 1, childSize);
+                        System.arraycopy(rLeaf.vals, 0, rVals, 1, childSize);
+                        Leaf nRight = new Leaf(rKeys, rVals);
+                        nChildren[idx - 1] = nLeft;
+                        nChildren[idx] = nRight;
+                    } else {
+                        Internal lIn = (Internal) leftSib;
+                        Internal rIn = (Internal) newChild;
+                        Node movedC = lIn.children[leftSize - 1];
+                        Node[] lC = Arrays.copyOf(lIn.children, leftSize - 1);
+                        String[] lS = Arrays.copyOf(lIn.sep, leftSize - 2);
+                        Internal nLeft = new Internal(lS, lC, lIn.totalKeys - movedC.totalKeys);
+
+                        Node[] rC = new Node[childSize + 1];
+                        rC[0] = movedC;
+                        System.arraycopy(rIn.children, 0, rC, 1, childSize);
+                        String[] rS = new String[childSize];
+                        rS[0] = rIn.minKey();
+                        System.arraycopy(rIn.sep, 0, rS, 1, rIn.sep.length);
+                        Internal nRight = new Internal(rS, rC, rIn.totalKeys + movedC.totalKeys);
+
+                        nChildren[idx - 1] = nLeft;
+                        nChildren[idx] = nRight;
+                    }
+                    return new Internal(buildSeparators(nChildren), nChildren, nTotal);
+                }
+            }
+
+            if (idx + 1 < cLen) {
+                Node rightSib = in.children[idx + 1];
+                int rightSize = rightSib instanceof Leaf l ? l.keys.length : ((Internal) rightSib).children.length;
+                if (rightSize > MIN) {
+                    Node[] nChildren = in.children.clone();
+                    if (newChild instanceof Leaf lLeaf) {
+                        Leaf rLeaf = (Leaf) rightSib;
+                        String movedK = rLeaf.keys[0];
+                        long movedV = rLeaf.vals[0];
+                        String[] lKeys = Arrays.copyOf(lLeaf.keys, childSize + 1);
+                        long[] lVals = Arrays.copyOf(lLeaf.vals, childSize + 1);
+                        lKeys[childSize] = movedK;
+                        lVals[childSize] = movedV;
+                        Leaf nLeft = new Leaf(lKeys, lVals);
+                        Leaf nRight = new Leaf(
+                                Arrays.copyOfRange(rLeaf.keys, 1, rightSize),
+                                Arrays.copyOfRange(rLeaf.vals, 1, rightSize)
+                        );
+                        nChildren[idx] = nLeft;
+                        nChildren[idx + 1] = nRight;
+                    } else {
+                        Internal lIn = (Internal) newChild;
+                        Internal rIn = (Internal) rightSib;
+                        Node movedC = rIn.children[0];
+                        Node[] lC = Arrays.copyOf(lIn.children, childSize + 1);
+                        lC[childSize] = movedC;
+                        String[] lS = Arrays.copyOf(lIn.sep, childSize);
+                        lS[childSize - 1] = rIn.minKey();
+                        Internal nLeft = new Internal(lS, lC, lIn.totalKeys + movedC.totalKeys);
+
+                        Node[] rC = Arrays.copyOfRange(rIn.children, 1, rightSize);
+                        String[] rS = Arrays.copyOfRange(rIn.sep, 1, rIn.sep.length);
+                        Internal nRight = new Internal(rS, rC, rIn.totalKeys - movedC.totalKeys);
+
+                        nChildren[idx] = nLeft;
+                        nChildren[idx + 1] = nRight;
+                    }
+                    return new Internal(buildSeparators(nChildren), nChildren, nTotal);
+                }
+            }
+
+            // Merge with sibling
+            int leftIdx = idx > 0 ? idx - 1 : idx;
+            Node leftNode = (leftIdx == idx) ? newChild : in.children[leftIdx];
+            Node rightNode = (leftIdx == idx) ? in.children[idx + 1] : newChild;
+
+            Node merged;
+            if (leftNode instanceof Leaf lLeaf) {
+                Leaf rLeaf = (Leaf) rightNode;
+                int lLen = lLeaf.keys.length;
+                int rLen = rLeaf.keys.length;
+                String[] mKeys = new String[lLen + rLen];
+                long[] mVals = new long[lLen + rLen];
+                System.arraycopy(lLeaf.keys, 0, mKeys, 0, lLen);
+                System.arraycopy(rLeaf.keys, 0, mKeys, lLen, rLen);
+                System.arraycopy(lLeaf.vals, 0, mVals, 0, lLen);
+                System.arraycopy(rLeaf.vals, 0, mVals, lLen, rLen);
+                merged = new Leaf(mKeys, mVals);
+            } else {
+                Internal lIn = (Internal) leftNode;
+                Internal rIn = (Internal) rightNode;
+                int lLen = lIn.children.length;
+                int rLen = rIn.children.length;
+                Node[] mC = new Node[lLen + rLen];
+                System.arraycopy(lIn.children, 0, mC, 0, lLen);
+                System.arraycopy(rIn.children, 0, mC, lLen, rLen);
+                String[] mS = new String[lLen + rLen - 1];
+                System.arraycopy(lIn.sep, 0, mS, 0, lIn.sep.length);
+                mS[lIn.sep.length] = rIn.minKey();
+                System.arraycopy(rIn.sep, 0, mS, lIn.sep.length + 1, rIn.sep.length);
+                merged = new Internal(mS, mC, lIn.totalKeys + rIn.totalKeys);
+            }
+
+            Node[] nChildren = new Node[cLen - 1];
+            System.arraycopy(in.children, 0, nChildren, 0, leftIdx);
+            nChildren[leftIdx] = merged;
+            System.arraycopy(in.children, leftIdx + 2, nChildren, leftIdx + 1, cLen - leftIdx - 2);
+            return new Internal(buildSeparators(nChildren), nChildren, nTotal);
+        }
+
+        private static String[] buildSeparators(Node[] children) {
+            String[] sep = new String[children.length - 1];
+            for (int i = 0; i < sep.length; i++) {
+                sep[i] = children[i + 1].minKey();
+            }
+            return sep;
+        }
+
+        void forEach(EntryConsumer consumer) {
+            if (root != null) {
+                forEachRec(root, consumer);
+            }
+        }
+
+        private static void forEachRec(Node node, EntryConsumer consumer) {
+            if (node instanceof Leaf leaf) {
+                for (int i = 0; i < leaf.keys.length; i++) {
+                    consumer.accept(leaf.keys[i], leaf.vals[i]);
+                }
+            } else {
+                Internal in = (Internal) node;
+                for (Node child : in.children) {
+                    forEachRec(child, consumer);
+                }
+            }
+        }
+
+        /** Returns child index i in [0, sep.length] where key belongs. */
+        private static int findChild(String[] sep, String key) {
+            int low = 0;
+            int high = sep.length - 1;
+            while (low <= high) {
+                int mid = (low + high) >>> 1;
+                int cmp = key.compareTo(sep[mid]);
+                if (cmp < 0) {
+                    high = mid - 1;
+                } else if (cmp > 0) {
+                    low = mid + 1;
+                } else {
+                    return mid + 1;
+                }
+            }
+            return low;
+        }
+
+        private static int binarySearch(String[] keys, String key) {
+            int low = 0;
+            int high = keys.length - 1;
+            while (low <= high) {
+                int mid = (low + high) >>> 1;
+                int cmp = keys[mid].compareTo(key);
+                if (cmp < 0) {
+                    low = mid + 1;
+                } else if (cmp > 0) {
+                    high = mid - 1;
+                } else {
+                    return mid;
+                }
+            }
+            return -(low + 1);
+        }
+    }
+
+    public record Result(Map<String, String> state,
+                         List<Long> committed,
+                         List<Long> aborted,
+                         List<Long> incomplete,
+                         int validLength,
+                         boolean tornTail) {}
+
+    public enum Code {
+        BAD_MAGIC, UNKNOWN_TYPE, RECORD_TOO_LARGE, CHECKSUM_MISMATCH,
+        MALFORMED_PAYLOAD, BAD_TXN_ID, BAD_KEY, BAD_VALUE,
+        DUPLICATE_TXN, TOO_MANY_OPEN, TXN_NOT_OPEN,
+        TXN_TOO_LARGE, BAD_NAME, NO_SAVEPOINT,
+        CHECKPOINT_MISMATCH, READ_MISMATCH, RANGE_MISMATCH
+    }
+
+    public static final class WalException extends Exception {
+        private final Code code;
+        private final int offset;
+        public WalException(Code code, int offset) {
+            super(code + "@" + offset);
+            this.code = code;
+            this.offset = offset;
+        }
+        public Code code() { return code; }
+        public int offset() { return offset; }
+    }
+}
+```

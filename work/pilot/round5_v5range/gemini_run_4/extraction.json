@@ -1,0 +1,9 @@
+{
+  "rule": "first_java_block",
+  "block_index": 0,
+  "blocks_found": 1,
+  "start": 8,
+  "end": 34097,
+  "sha256": "f4fee0f4f85f4ec5faac4b7bdd796e77fa9e429270699fc5f372bcc832ac7f98",
+  "self_check_substring": true
+}

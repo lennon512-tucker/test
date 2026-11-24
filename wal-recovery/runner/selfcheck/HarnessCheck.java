@@ -83,6 +83,16 @@ public final class HarnessCheck {
         // s2 8,16,33,52,71,90,109,128,147,166,185,204 -> s2 204 = CC, s1 19 = 13
         eq("checkpoint_ids_as_given", "08 00 09 02 FF FF FF FF 00 00 00 00 CC 13",
                 Hex.format(LogBuilder.raw().checkpoint(4294967295L, 0).build()));
+        // READ 1 "a" absent, by hand: 09 00 07 00 00 00 01 01 61 00; s1 9,9,16,16,16,16,17,18,115,115;
+        // s2 9,18,34,50,66,82,99,117,232,347-255=92 -> s2 92 = 5C, s1 115 = 73
+        eq("read_absent_record", "09 00 07 00 00 00 01 01 61 00 5C 73", Hex.format(LogBuilder.raw().readAbsent(1, "a").build()));
+        // READ 1 "a" = "1", by hand: 09 00 0A 00 00 00 01 01 61 01 00 01 31; s1 9,9,19,19,19,19,20,21,118,119,119,120,169;
+        // s2 9,18,37,56,75,94,114,135,253,372-255=117,236,356-255=101,270-255=15 -> 0F A9
+        eq("read_value_record", "09 00 0A 00 00 00 01 01 61 01 00 01 31 0F A9", Hex.format(LogBuilder.raw().read(1, "a", "1").build()));
+        // RANGE 1 "a".."c" count 2, by hand: 0A 00 0C 00 00 00 01 01 61 01 63 00 00 00 02;
+        // s1 10,10,22,22,22,22,23,24,121,122,221,221,221,221,223;
+        // s2 10,20,42,64,86,108,131,155,21,143,109,75,41,7,230 -> s2 230 = E6, s1 223 = DF
+        eq("range_record", "0A 00 0C 00 00 00 01 01 61 01 63 00 00 00 02 E6 DF", Hex.format(LogBuilder.raw().range(1, "a", "c", 2).build()));
         LogBuilder lb = LogBuilder.wal().begin(1);
         byte[] first = lb.build();
         lb.commit(1);

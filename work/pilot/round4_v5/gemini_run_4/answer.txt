@@ -1,0 +1,670 @@
+```java
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+
+public final class WalRecovery {
+    private WalRecovery() {}
+
+    public record Result(Map<String, String> state,
+                         List<Long> committed,
+                         List<Long> aborted,
+                         List<Long> incomplete,
+                         int validLength,
+                         boolean tornTail) {}
+
+    public enum Code {
+        BAD_MAGIC, UNKNOWN_TYPE, RECORD_TOO_LARGE, CHECKSUM_MISMATCH,
+        MALFORMED_PAYLOAD, BAD_TXN_ID, BAD_KEY, BAD_VALUE,
+        DUPLICATE_TXN, TOO_MANY_OPEN, TXN_NOT_OPEN,
+        TXN_TOO_LARGE, BAD_NAME, NO_SAVEPOINT,
+        CHECKPOINT_MISMATCH, READ_MISMATCH
+    }
+
+    public static final class WalException extends Exception {
+        private final Code code;
+        private final int offset;
+        public WalException(Code code, int offset) {
+            super(code + "@" + offset);
+            this.code = code;
+            this.offset = offset;
+        }
+        public Code code() { return code; }
+        public int offset() { return offset; }
+    }
+
+    private static final byte[] MAGIC = { 0x57, 0x41, 0x4C, 0x31 };
+    private static final int HEADER_SIZE = 4;
+    private static final int MAX_PAYLOAD = 1024;
+    private static final int MIN_KEY_LEN = 1;
+    private static final int MAX_KEY_LEN = 32;
+    private static final int KEY_BYTE_MIN = 0x21;
+    private static final int KEY_BYTE_MAX = 0x7E;
+    private static final int VALUE_BYTE_MIN = 0x20;
+    private static final int VALUE_BYTE_MAX = 0x7E;
+    private static final int NAME_BYTE_MIN = 0x21;
+    private static final int NAME_BYTE_MAX = 0x7E;
+    private static final int MAX_OPEN_TXNS = 4;
+    private static final int MAX_WRITES = 8;
+
+    /** Recovers the store from a log. Must not modify {@code log}. */
+    public static Result recover(byte[] log) throws WalException {
+        // R1
+        if (log == null) {
+            throw new NullPointerException();
+        }
+        int L = log.length;
+        // R2
+        if (L == 0) {
+            return emptyResult(0, false);
+        }
+        // R3
+        if (L < HEADER_SIZE) {
+            for (int i = 0; i < L; i++) {
+                if (log[i] != MAGIC[i]) {
+                    throw new WalException(Code.BAD_MAGIC, 0);
+                }
+            }
+            return emptyResult(0, true);
+        }
+        // R4
+        for (int i = 0; i < HEADER_SIZE; i++) {
+            if (log[i] != MAGIC[i]) {
+                throw new WalException(Code.BAD_MAGIC, 0);
+            }
+        }
+
+        // Phase 1: frames
+        int p = HEADER_SIZE;
+        int validLength;
+        boolean tornTail;
+
+        while (true) {
+            // R5
+            if (p == L) {
+                validLength = L;
+                tornTail = false;
+                break;
+            }
+            // R6
+            if (L - p <= 2) {
+                validLength = p;
+                tornTail = true;
+                break;
+            }
+            // R7
+            int type = log[p] & 0xFF;
+            if (type < 1 || type > 9) {
+                throw new WalException(Code.UNKNOWN_TYPE, p);
+            }
+            // R8
+            int N = readU16(log, p + 1);
+            if (N > MAX_PAYLOAD) {
+                throw new WalException(Code.RECORD_TOO_LARGE, p);
+            }
+            // R9
+            int end = p + 5 + N;
+            if (end > L) {
+                validLength = p;
+                tornTail = true;
+                break;
+            }
+            // R10
+            int s1 = 0;
+            int s2 = 0;
+            int cEnd = p + 3 + N;
+            for (int i = p; i < cEnd; i++) {
+                s1 += log[i] & 0xFF;
+                s2 += s1;
+            }
+            s1 %= 255;
+            s2 %= 255;
+            int storedS2 = log[cEnd] & 0xFF;
+            int storedS1 = log[cEnd + 1] & 0xFF;
+            if (storedS2 != s2 || storedS1 != s1) {
+                if (end == L) {
+                    validLength = p;
+                    tornTail = true;
+                    break;
+                } else {
+                    throw new WalException(Code.CHECKSUM_MISMATCH, p);
+                }
+            }
+            // R11
+            p = end;
+        }
+
+        // Phase 2: replay
+        IntSet seenTxns = new IntSet(1024);
+        Txn[] openTxns = new Txn[MAX_OPEN_TXNS];
+        Txn[] freePool = new Txn[MAX_OPEN_TXNS];
+        for (int i = 0; i < MAX_OPEN_TXNS; i++) {
+            freePool[i] = new Txn();
+        }
+        int freeCount = MAX_OPEN_TXNS;
+        int openCount = 0;
+
+        HashMap<String, StateEntry> state = new HashMap<>();
+        HashMap<String, Integer> lastCommitSeq = new HashMap<>();
+        int commitSeq = 0;
+
+        ArrayList<Long> committed = new ArrayList<>();
+        ArrayList<Long> aborted = new ArrayList<>();
+
+        p = HEADER_SIZE;
+        while (p < validLength) {
+            int type = log[p] & 0xFF;
+            int N = readU16(log, p + 1);
+            int pay = p + 3;
+
+            // R13: Payload layout
+            int k = 0, v = 0, f = 0, c = 0;
+            switch (type) {
+                case 1, 4, 5 -> { // BEGIN, COMMIT, ABORT
+                    if (N != 4) throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                }
+                case 2 -> { // PUT
+                    if (N < 5) throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    k = log[pay + 4] & 0xFF;
+                    if (N < 7 + k) throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    v = readU16(log, pay + 5 + k);
+                    if (N != 7 + k + v) throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                }
+                case 3 -> { // DELETE
+                    if (N < 5) throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    k = log[pay + 4] & 0xFF;
+                    if (N != 5 + k) throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                }
+                case 6, 7 -> { // SAVEPOINT, ROLLBACK
+                    if (N != 5) throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                }
+                case 8 -> { // CHECKPOINT
+                    if (N < 1) throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    c = log[pay] & 0xFF;
+                    if (N != 1 + 4 * c) throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                }
+                case 9 -> { // READ
+                    if (N < 6) throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    k = log[pay + 4] & 0xFF;
+                    if (N < 6 + k) throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    f = log[pay + 5 + k] & 0xFF;
+                    if (f == 0) {
+                        if (N != 6 + k) throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    } else if (f == 1) {
+                        if (N < 8 + k) throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                        v = readU16(log, pay + 6 + k);
+                        if (N != 8 + k + v) throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    } else {
+                        throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    }
+                }
+            }
+
+            // R14: Txn ids
+            long txn = 0;
+            if (type != 8) {
+                txn = readU32(log, pay);
+                if (txn == 0) throw new WalException(Code.BAD_TXN_ID, p);
+            } else {
+                for (int i = 0; i < c; i++) {
+                    if (readU32(log, pay + 1 + 4 * i) == 0) {
+                        throw new WalException(Code.BAD_TXN_ID, p);
+                    }
+                }
+            }
+
+            // R15: Key (PUT, DELETE, READ)
+            int keyOff = pay + 5;
+            if (type == 2 || type == 3 || type == 9) {
+                if (k < MIN_KEY_LEN || k > MAX_KEY_LEN) {
+                    throw new WalException(Code.BAD_KEY, p);
+                }
+                for (int i = 0; i < k; i++) {
+                    int b = log[keyOff + i] & 0xFF;
+                    if (b < KEY_BYTE_MIN || b > KEY_BYTE_MAX) {
+                        throw new WalException(Code.BAD_KEY, p);
+                    }
+                }
+            }
+
+            // R16: Value (PUT, and READ when f = 1)
+            int valOff = 0;
+            if (type == 2 || (type == 9 && f == 1)) {
+                valOff = (type == 2) ? (pay + 7 + k) : (pay + 8 + k);
+                for (int i = 0; i < v; i++) {
+                    int b = log[valOff + i] & 0xFF;
+                    if (b < VALUE_BYTE_MIN || b > VALUE_BYTE_MAX) {
+                        throw new WalException(Code.BAD_VALUE, p);
+                    }
+                }
+            }
+
+            // R16a: Name (SAVEPOINT, ROLLBACK)
+            int name = 0;
+            if (type == 6 || type == 7) {
+                name = log[pay + 4] & 0xFF;
+                if (name < NAME_BYTE_MIN || name > NAME_BYTE_MAX) {
+                    throw new WalException(Code.BAD_NAME, p);
+                }
+            }
+
+            // Transaction checks and actions (R17 - R23d)
+            switch (type) {
+                case 1 -> { // BEGIN
+                    // R17: Reused id
+                    if (!seenTxns.add((int) txn)) {
+                        throw new WalException(Code.DUPLICATE_TXN, p);
+                    }
+                    // R18: Open limit
+                    if (openCount == MAX_OPEN_TXNS) {
+                        throw new WalException(Code.TOO_MANY_OPEN, p);
+                    }
+                    // R20: BEGIN action
+                    Txn t = freePool[--freeCount];
+                    t.reset(txn, commitSeq);
+                    openTxns[openCount++] = t;
+                }
+                case 2 -> { // PUT
+                    // R19: Open check
+                    Txn t = findOpen(openTxns, openCount, txn);
+                    if (t == null) throw new WalException(Code.TXN_NOT_OPEN, p);
+                    // R19a: Write limit
+                    if (t.writeCount == MAX_WRITES) throw new WalException(Code.TXN_TOO_LARGE, p);
+                    // R21: PUT action
+                    String keyStr = asciiString(log, keyOff, k);
+                    t.writeKeys[t.writeCount] = keyStr;
+                    t.writeVals[t.writeCount] = new ValueData(log, valOff, v);
+                    t.writeCount++;
+                }
+                case 3 -> { // DELETE
+                    // R19: Open check
+                    Txn t = findOpen(openTxns, openCount, txn);
+                    if (t == null) throw new WalException(Code.TXN_NOT_OPEN, p);
+                    // R19a: Write limit
+                    if (t.writeCount == MAX_WRITES) throw new WalException(Code.TXN_TOO_LARGE, p);
+                    // R21: DELETE action
+                    String keyStr = asciiString(log, keyOff, k);
+                    t.writeKeys[t.writeCount] = keyStr;
+                    t.writeVals[t.writeCount] = null;
+                    t.writeCount++;
+                }
+                case 4 -> { // COMMIT
+                    // R19: Open check
+                    int idx = findOpenIdx(openTxns, openCount, txn);
+                    if (idx < 0) throw new WalException(Code.TXN_NOT_OPEN, p);
+                    Txn t = openTxns[idx];
+                    // Close transaction
+                    openTxns[idx] = openTxns[--openCount];
+                    openTxns[openCount] = null;
+
+                    // R22: COMMIT action
+                    boolean conflict = false;
+                    if (t.readSet != null) {
+                        for (String rk : t.readSet) {
+                            Integer seq = lastCommitSeq.get(rk);
+                            if (seq != null && seq > t.beginCommitSeq) {
+                                conflict = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!conflict) {
+                        commitSeq++;
+                        for (int i = 0; i < t.writeCount; i++) {
+                            String wk = t.writeKeys[i];
+                            ValueData wv = t.writeVals[i];
+                            // Snapshot preservation for remaining concurrently open txns
+                            for (int j = 0; j < openCount; j++) {
+                                Txn other = openTxns[j];
+                                if (other.overwritten == null) {
+                                    other.overwritten = new HashMap<>();
+                                }
+                                if (!other.overwritten.containsKey(wk)) {
+                                    other.overwritten.put(wk, state.get(wk)); // null if currently absent
+                                }
+                            }
+                            if (wv != null) {
+                                state.put(wk, new StateEntry(wv.buf, wv.off, wv.len));
+                            } else {
+                                state.remove(wk);
+                            }
+                            lastCommitSeq.put(wk, commitSeq);
+                        }
+                        committed.add(txn);
+                    } else {
+                        aborted.add(txn);
+                    }
+
+                    t.clear();
+                    freePool[freeCount++] = t;
+                }
+                case 5 -> { // ABORT
+                    // R19: Open check
+                    int idx = findOpenIdx(openTxns, openCount, txn);
+                    if (idx < 0) throw new WalException(Code.TXN_NOT_OPEN, p);
+                    Txn t = openTxns[idx];
+                    openTxns[idx] = openTxns[--openCount];
+                    openTxns[openCount] = null;
+
+                    // R23: ABORT action
+                    aborted.add(txn);
+                    t.clear();
+                    freePool[freeCount++] = t;
+                }
+                case 6 -> { // SAVEPOINT
+                    // R19: Open check
+                    Txn t = findOpen(openTxns, openCount, txn);
+                    if (t == null) throw new WalException(Code.TXN_NOT_OPEN, p);
+                    // R23a: SAVEPOINT action
+                    int spIdx = name - NAME_BYTE_MIN;
+                    if (t.spOffset[spIdx] == -1) {
+                        t.activeSp[t.activeSpCount++] = spIdx;
+                    }
+                    t.spPos[spIdx] = t.writeCount;
+                    t.spOffset[spIdx] = p;
+                }
+                case 7 -> { // ROLLBACK
+                    // R19: Open check
+                    Txn t = findOpen(openTxns, openCount, txn);
+                    if (t == null) throw new WalException(Code.TXN_NOT_OPEN, p);
+                    // R19b: Savepoint check
+                    int spIdx = name - NAME_BYTE_MIN;
+                    int targetOffset = t.spOffset[spIdx];
+                    if (targetOffset == -1) {
+                        throw new WalException(Code.NO_SAVEPOINT, p);
+                    }
+                    // R23b: ROLLBACK action
+                    int targetPos = t.spPos[spIdx];
+                    for (int i = targetPos; i < t.writeCount; i++) {
+                        t.writeKeys[i] = null;
+                        t.writeVals[i] = null;
+                    }
+                    t.writeCount = targetPos;
+
+                    int newSpCount = 0;
+                    for (int i = 0; i < t.activeSpCount; i++) {
+                        int activeIdx = t.activeSp[i];
+                        if (t.spOffset[activeIdx] > targetOffset) {
+                            t.spOffset[activeIdx] = -1;
+                        } else {
+                            t.activeSp[newSpCount++] = activeIdx;
+                        }
+                    }
+                    t.activeSpCount = newSpCount;
+                }
+                case 8 -> { // CHECKPOINT
+                    // R19c: Checkpoint check
+                    if (c != openCount) {
+                        throw new WalException(Code.CHECKPOINT_MISMATCH, p);
+                    }
+                    if (c > 0) {
+                        long[] openIds = new long[openCount];
+                        for (int i = 0; i < openCount; i++) {
+                            openIds[i] = openTxns[i].id;
+                        }
+                        Arrays.sort(openIds);
+                        for (int i = 0; i < c; i++) {
+                            long listed = readU32(log, pay + 1 + 4 * i);
+                            if (listed != openIds[i]) {
+                                throw new WalException(Code.CHECKPOINT_MISMATCH, p);
+                            }
+                        }
+                    }
+                    // R23c: CHECKPOINT action (nothing changes)
+                }
+                case 9 -> { // READ
+                    // R19: Open check
+                    Txn t = findOpen(openTxns, openCount, txn);
+                    if (t == null) throw new WalException(Code.TXN_NOT_OPEN, p);
+
+                    // R19d: Read check
+                    String keyStr = asciiString(log, keyOff, k);
+                    boolean foundInWrites = false;
+                    ValueData writeVal = null;
+                    for (int i = t.writeCount - 1; i >= 0; i--) {
+                        if (t.writeKeys[i].equals(keyStr)) {
+                            foundInWrites = true;
+                            writeVal = t.writeVals[i];
+                            break;
+                        }
+                    }
+
+                    if (foundInWrites) {
+                        if (f == 0) {
+                            if (writeVal != null) throw new WalException(Code.READ_MISMATCH, p);
+                        } else {
+                            if (writeVal == null || !bytesEqual(writeVal.buf, writeVal.off, writeVal.len, log, valOff, v)) {
+                                throw new WalException(Code.READ_MISMATCH, p);
+                            }
+                        }
+                    } else {
+                        StateEntry snapEntry;
+                        if (t.overwritten != null && t.overwritten.containsKey(keyStr)) {
+                            snapEntry = t.overwritten.get(keyStr);
+                        } else {
+                            snapEntry = state.get(keyStr);
+                        }
+                        if (f == 0) {
+                            if (snapEntry != null) throw new WalException(Code.READ_MISMATCH, p);
+                        } else {
+                            if (snapEntry == null || !bytesEqual(snapEntry.buf, snapEntry.off, snapEntry.len, log, valOff, v)) {
+                                throw new WalException(Code.READ_MISMATCH, p);
+                            }
+                        }
+                    }
+
+                    // R23d: READ action
+                    if (t.readSet == null) {
+                        t.readSet = new HashSet<>();
+                    }
+                    t.readSet.add(keyStr);
+                }
+            }
+
+            p += 5 + N;
+        }
+
+        // Build final Result (R24 - R27)
+        HashMap<String, String> finalState = new HashMap<>(state.size() * 2);
+        for (Map.Entry<String, StateEntry> e : state.entrySet()) {
+            StateEntry se = e.getValue();
+            finalState.put(e.getKey(), asciiString(se.buf, se.off, se.len));
+        }
+
+        ArrayList<Long> incomplete = new ArrayList<>(openCount);
+        if (openCount > 0) {
+            long[] openIds = new long[openCount];
+            for (int i = 0; i < openCount; i++) {
+                openIds[i] = openTxns[i].id;
+            }
+            Arrays.sort(openIds);
+            for (long id : openIds) {
+                incomplete.add(id);
+            }
+        }
+
+        return new Result(finalState, committed, aborted, incomplete, validLength, tornTail);
+    }
+
+    private static Result emptyResult(int validLength, boolean tornTail) {
+        return new Result(
+                Collections.emptyMap(),
+                Collections.emptyList(),
+                Collections.emptyList(),
+                Collections.emptyList(),
+                validLength,
+                tornTail
+        );
+    }
+
+    private static int readU16(byte[] b, int off) {
+        return ((b[off] & 0xFF) << 8) | (b[off + 1] & 0xFF);
+    }
+
+    private static long readU32(byte[] b, int off) {
+        return ((long) (b[off] & 0xFF) << 24)
+             | ((long) (b[off + 1] & 0xFF) << 16)
+             | ((long) (b[off + 2] & 0xFF) << 8)
+             | ((long) (b[off + 3] & 0xFF));
+    }
+
+    private static String asciiString(byte[] b, int off, int len) {
+        if (len == 0) return "";
+        return new String(b, off, len, StandardCharsets.ISO_8859_1);
+    }
+
+    private static boolean bytesEqual(byte[] a, int aOff, int aLen, byte[] b, int bOff, int bLen) {
+        if (aLen != bLen) return false;
+        return Arrays.mismatch(a, aOff, aOff + aLen, b, bOff, bOff + bLen) == -1;
+    }
+
+    private static Txn findOpen(Txn[] openTxns, int openCount, long id) {
+        for (int i = 0; i < openCount; i++) {
+            if (openTxns[i].id == id) return openTxns[i];
+        }
+        return null;
+    }
+
+    private static int findOpenIdx(Txn[] openTxns, int openCount, long id) {
+        for (int i = 0; i < openCount; i++) {
+            if (openTxns[i].id == id) return i;
+        }
+        return -1;
+    }
+
+    private static final class ValueData {
+        final byte[] buf;
+        final int off;
+        final int len;
+
+        ValueData(byte[] buf, int off, int len) {
+            this.buf = buf;
+            this.off = off;
+            this.len = len;
+        }
+    }
+
+    private static final class StateEntry {
+        final byte[] buf;
+        final int off;
+        final int len;
+
+        StateEntry(byte[] buf, int off, int len) {
+            this.buf = buf;
+            this.off = off;
+            this.len = len;
+        }
+    }
+
+    private static final class Txn {
+        private static final int SP_SPACE = NAME_BYTE_MAX - NAME_BYTE_MIN + 1;
+
+        long id;
+        int beginCommitSeq;
+
+        final String[] writeKeys = new String[MAX_WRITES];
+        final ValueData[] writeVals = new ValueData[MAX_WRITES]; // null represents DELETE
+        int writeCount;
+
+        final int[] spPos = new int[SP_SPACE];
+        final int[] spOffset = new int[SP_SPACE];
+        final int[] activeSp = new int[SP_SPACE];
+        int activeSpCount;
+
+        HashMap<String, StateEntry> overwritten;
+        HashSet<String> readSet;
+
+        Txn() {
+            Arrays.fill(spOffset, -1);
+        }
+
+        void reset(long id, int beginCommitSeq) {
+            this.id = id;
+            this.beginCommitSeq = beginCommitSeq;
+            this.writeCount = 0;
+            this.activeSpCount = 0;
+            this.overwritten = null;
+            this.readSet = null;
+        }
+
+        void clear() {
+            for (int i = 0; i < writeCount; i++) {
+                writeKeys[i] = null;
+                writeVals[i] = null;
+            }
+            writeCount = 0;
+            for (int i = 0; i < activeSpCount; i++) {
+                spOffset[activeSp[i]] = -1;
+            }
+            activeSpCount = 0;
+            overwritten = null;
+            readSet = null;
+        }
+    }
+
+    private static final class IntSet {
+        private int[] keys;
+        private int mask;
+        private int size;
+        private int threshold;
+
+        IntSet(int initialCapacity) {
+            int cap = Integer.highestOneBit(Math.max(16, initialCapacity - 1)) << 1;
+            keys = new int[cap];
+            mask = cap - 1;
+            threshold = (cap * 3) >>> 2;
+        }
+
+        boolean add(int key) {
+            int idx = mix(key) & mask;
+            while (true) {
+                int cur = keys[idx];
+                if (cur == 0) {
+                    keys[idx] = key;
+                    if (++size >= threshold) {
+                        rehash();
+                    }
+                    return true;
+                }
+                if (cur == key) {
+                    return false;
+                }
+                idx = (idx + 1) & mask;
+            }
+        }
+
+        private void rehash() {
+            int newCap = keys.length << 1;
+            int[] newKeys = new int[newCap];
+            int newMask = newCap - 1;
+            for (int k : keys) {
+                if (k != 0) {
+                    int idx = mix(k) & newMask;
+                    while (newKeys[idx] != 0) {
+                        idx = (idx + 1) & newMask;
+                    }
+                    newKeys[idx] = k;
+                }
+            }
+            keys = newKeys;
+            mask = newMask;
+            threshold = (newCap * 3) >>> 2;
+        }
+
+        private static int mix(int x) {
+            x ^= x >>> 16;
+            x *= 0x85ebca6b;
+            x ^= x >>> 13;
+            x *= 0xc2b2ae35;
+            x ^= x >>> 16;
+            return x;
+        }
+    }
+}
+```

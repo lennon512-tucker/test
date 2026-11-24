@@ -185,7 +185,7 @@ def main():
     elif a.test:
         if not os.path.isfile(a.test):
             sys.exit("no such file: %s" % a.test)
-        res = javatest.test_solution(a.test, "adhoc")
+        res = javatest.test_solution(a.test, "adhoc_%d" % os.getpid())
         javatest.print_report(res)
         sys.exit(0 if all(t["status"] == "PASS" for t in res["tests"]) else 1)
     elif a.mutants:

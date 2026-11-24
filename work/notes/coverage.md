@@ -1,5 +1,7 @@
 # Hidden test coverage
 
+> v5 update (2026-11-24): 173 hidden tests. New groups N (H124-H141, READ/snapshots/read conflicts), O (H142-H156, RANGE/key order/phantoms), v5-audit additions H163-H173, P scale (H157-H162, last in the file). H09/H11/H20 now use type 11. New codes: READ_MISMATCH (H126, H164, H157, H158, H159), RANGE_MISMATCH (H144, H146, H160, H161, H173). New traps T35-T46 below; the v5 blind audit (work/notes/test-audit-v5.md) agreed 42/42.
+
 Rule numbers are those of task/PROMPT.md (DRAFT v4): R1-R27 with the v3 rules R16a, R19a, R19b, R23a, R23b and the v4 rules R19c, R23c; precedence P1-P5; "Not errors" items 1-17 (section 10).
 Traps T1-T17 are PLAN.md section 4.6; T18-T26 are work/notes/spec-change-v3.md section 5 (levers L1 and L2); T27-T34 are work/notes/spec-change-v4.md section 5 (lever L3).
 "Main" means the test was built to check that rule; "also" means the rule is exercised on the way (for example, R13 on a well-formed record) but is not what the test is about.
@@ -236,3 +238,20 @@ Total 2+4+6+7+16+6+6+4+3+3+6+3+3+4+8+1+41 = 123. All 15 Codes have at least 2 te
 - Independent audit of P04, H11, H20, H70-H99 (P7 method; work/notes/test-audit.md "v3 audit"): 33 of 33 agree; no expected line changed; one comment reworded (H78, about the v2 H11 bytes).
 - Regression check of H01-H69 (byte dump, frames split by N only): no reachable type-6/7 frame, at most 5 writes per log, so their v2 outcomes hold under v3.
 - Group L added: H100 (DELETE with key byte 20 while the list holds 8: BAD_KEY before TXN_TOO_LARGE, T19's BAD_KEY half) and H101 (ROLLBACK with no SAVEPOINT anywhere in the log: NO_SAVEPOINT; R19b first case, R20 "no savepoints").
+
+## v5 traps (L4, L5, L6) -> tests
+
+| Trap | Tests |
+|---|---|
+| T35 READ uses the snapshot, not the current state | H125, H126, H163 (writer began before reader; uncommitted writes not in the snapshot) |
+| T36 own last write decides the view (PUT, DELETE, after ROLLBACK, repeated writes) | H124, H127, H128, H156, H165 |
+| T37 empty value "" is present | H164 |
+| T38 read conflict: U committed after T's BEGIN; commit before BEGIN does not count | H129, H132, H163 |
+| T39 no reads -> no conflict; T's own writes do not count | H130, H166 |
+| T40 conflict-aborted U never conflicts; closes T (CHECKPOINT) | H131, H167 |
+| T41 written keys exclude rolled-back writes, include DELETE of a missing key | H133, H135 |
+| T42 ROLLBACK keeps read set and read ranges | H134, H168 |
+| T43 RANGE counts view keys once; lo > hi; prefix order; inclusive ends; u32 count | H142, H145, H146, H147, H165, H173 |
+| T44 phantom: key inside a read range conflicts, even when U committed before the RANGE record | H148, H149, H150, H151 |
+| T45 READ/RANGE field checks and precedence | H136, H137, H138, H139, H140, H152, H153, H154, H155, H169, H170, H171, H172 |
+| T46 scale (section 2 shapes): many readers, large state snapshots, long reader with many versions, range counts over a large snapshot, snapshot while the state grows, COMMIT with many read ranges | H157-H162 |

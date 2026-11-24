@@ -1,0 +1,542 @@
+```java
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+
+public final class WalRecovery {
+    private static final byte[] MAGIC = {0x57, 0x41, 0x4C, 0x31};
+    private static final int HEADER_SIZE = 4;
+    private static final int MAX_PAYLOAD = 1024;
+    private static final int MIN_KEY_LEN = 1;
+    private static final int MAX_KEY_LEN = 32;
+    private static final int KEY_BYTE_MIN = 0x21;
+    private static final int KEY_BYTE_MAX = 0x7E;
+    private static final int VALUE_BYTE_MIN = 0x20;
+    private static final int VALUE_BYTE_MAX = 0x7E;
+    private static final int NAME_BYTE_MIN = 0x21;
+    private static final int NAME_BYTE_MAX = 0x7E;
+    private static final int MAX_OPEN_TXNS = 4;
+    private static final int MAX_WRITES = 8;
+
+    private static final int TYPE_BEGIN = 1;
+    private static final int TYPE_PUT = 2;
+    private static final int TYPE_DELETE = 3;
+    private static final int TYPE_COMMIT = 4;
+    private static final int TYPE_ABORT = 5;
+    private static final int TYPE_SAVEPOINT = 6;
+    private static final int TYPE_ROLLBACK = 7;
+    private static final int TYPE_CHECKPOINT = 8;
+    private static final int TYPE_READ = 9;
+
+    private WalRecovery() {}
+
+    /** Recovers the store from a log. Must not modify {@code log}. */
+    public static Result recover(byte[] log) throws WalException {
+        // R1
+        if (log == null) {
+            throw new NullPointerException("log must not be null");
+        }
+        int len = log.length;
+
+        // R2
+        if (len == 0) {
+            return emptyResult(0, false);
+        }
+
+        // R3
+        if (len < HEADER_SIZE) {
+            for (int i = 0; i < len; i++) {
+                if (log[i] != MAGIC[i]) {
+                    throw new WalException(Code.BAD_MAGIC, 0);
+                }
+            }
+            return emptyResult(0, true);
+        }
+
+        // R4
+        for (int i = 0; i < HEADER_SIZE; i++) {
+            if (log[i] != MAGIC[i]) {
+                throw new WalException(Code.BAD_MAGIC, 0);
+            }
+        }
+
+        // Phase 1: frames
+        List<IntactRecord> intactRecords = new ArrayList<>();
+        int p = HEADER_SIZE;
+        int validLength;
+        boolean tornTail;
+
+        while (true) {
+            // R5
+            if (p == len) {
+                validLength = len;
+                tornTail = false;
+                break;
+            }
+            // R6
+            if (len - p == 1 || len - p == 2) {
+                validLength = p;
+                tornTail = true;
+                break;
+            }
+            // R7
+            int type = u8(log, p);
+            if (type < TYPE_BEGIN || type > TYPE_READ) {
+                throw new WalException(Code.UNKNOWN_TYPE, p);
+            }
+            // R8
+            int n = u16(log, p + 1);
+            if (n > MAX_PAYLOAD) {
+                throw new WalException(Code.RECORD_TOO_LARGE, p);
+            }
+            // R9
+            int nextP = p + 5 + n;
+            if (nextP > len) {
+                validLength = p;
+                tornTail = true;
+                break;
+            }
+            // R10
+            if (!checksumMatches(log, p, n)) {
+                if (nextP == len) {
+                    validLength = p;
+                    tornTail = true;
+                    break;
+                } else {
+                    throw new WalException(Code.CHECKSUM_MISMATCH, p);
+                }
+            }
+            // R11
+            intactRecords.add(new IntactRecord(p, type, n));
+            p = nextP;
+        }
+
+        // Phase 2: replay
+        Map<String, String> state = new LinkedHashMap<>();
+        TreeMap<Long, Txn> openTxns = new TreeMap<>();
+        Set<Long> seenBeginTxns = new HashSet<>();
+        List<CommittedTxn> committedHistory = new ArrayList<>();
+        List<Long> committed = new ArrayList<>();
+        List<Long> aborted = new ArrayList<>();
+
+        for (IntactRecord rec : intactRecords) {
+            replayRecord(log, rec, state, openTxns, seenBeginTxns, committedHistory, committed, aborted);
+        }
+
+        List<Long> incomplete = new ArrayList<>(openTxns.keySet());
+        return new Result(
+                Collections.unmodifiableMap(state),
+                Collections.unmodifiableList(committed),
+                Collections.unmodifiableList(aborted),
+                Collections.unmodifiableList(incomplete),
+                validLength,
+                tornTail
+        );
+    }
+
+    private static void replayRecord(
+            byte[] log,
+            IntactRecord rec,
+            Map<String, String> state,
+            TreeMap<Long, Txn> openTxns,
+            Set<Long> seenBeginTxns,
+            List<CommittedTxn> committedHistory,
+            List<Long> committed,
+            List<Long> aborted) throws WalException {
+
+        int p = rec.offset;
+        int type = rec.type;
+        int n = rec.payloadLen;
+        int pay = p + 3;
+
+        int k = 0;
+        int v = 0;
+        int f = 0;
+        int c = 0;
+        int valOffset = 0;
+
+        // R13: Payload layout
+        switch (type) {
+            case TYPE_BEGIN, TYPE_COMMIT, TYPE_ABORT -> {
+                if (n != 4) {
+                    throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                }
+            }
+            case TYPE_PUT -> {
+                if (n < 5) {
+                    throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                }
+                k = u8(log, pay + 4);
+                if (n < 7 + k) {
+                    throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                }
+                v = u16(log, pay + 5 + k);
+                if (n != 7 + k + v) {
+                    throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                }
+                valOffset = pay + 7 + k;
+            }
+            case TYPE_DELETE -> {
+                if (n < 5) {
+                    throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                }
+                k = u8(log, pay + 4);
+                if (n != 5 + k) {
+                    throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                }
+            }
+            case TYPE_SAVEPOINT, TYPE_ROLLBACK -> {
+                if (n != 5) {
+                    throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                }
+            }
+            case TYPE_CHECKPOINT -> {
+                if (n < 1) {
+                    throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                }
+                c = u8(log, pay);
+                if (n != 1 + 4 * c) {
+                    throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                }
+            }
+            case TYPE_READ -> {
+                if (n < 6) {
+                    throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                }
+                k = u8(log, pay + 4);
+                if (n < 6 + k) {
+                    throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                }
+                f = u8(log, pay + 5 + k);
+                if (f == 0) {
+                    if (n != 6 + k) {
+                        throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    }
+                } else if (f == 1) {
+                    if (n < 8 + k) {
+                        throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    }
+                    v = u16(log, pay + 6 + k);
+                    if (n != 8 + k + v) {
+                        throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    }
+                    valOffset = pay + 8 + k;
+                } else {
+                    throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                }
+            }
+            default -> throw new WalException(Code.UNKNOWN_TYPE, p);
+        }
+
+        // R14: Txn ids
+        long txn = 0;
+        if (type != TYPE_CHECKPOINT) {
+            txn = u32(log, pay);
+            if (txn == 0) {
+                throw new WalException(Code.BAD_TXN_ID, p);
+            }
+        } else {
+            for (int i = 0; i < c; i++) {
+                if (u32(log, pay + 1 + 4 * i) == 0) {
+                    throw new WalException(Code.BAD_TXN_ID, p);
+                }
+            }
+        }
+
+        // R15: Key (PUT, DELETE, READ)
+        if (type == TYPE_PUT || type == TYPE_DELETE || type == TYPE_READ) {
+            if (k < MIN_KEY_LEN || k > MAX_KEY_LEN) {
+                throw new WalException(Code.BAD_KEY, p);
+            }
+            int keyStart = pay + 5;
+            for (int i = 0; i < k; i++) {
+                int b = u8(log, keyStart + i);
+                if (b < KEY_BYTE_MIN || b > KEY_BYTE_MAX) {
+                    throw new WalException(Code.BAD_KEY, p);
+                }
+            }
+        }
+
+        // R16: Value (PUT, and READ when f = 1)
+        if (type == TYPE_PUT || (type == TYPE_READ && f == 1)) {
+            for (int i = 0; i < v; i++) {
+                int b = u8(log, valOffset + i);
+                if (b < VALUE_BYTE_MIN || b > VALUE_BYTE_MAX) {
+                    throw new WalException(Code.BAD_VALUE, p);
+                }
+            }
+        }
+
+        // R16a: Name (SAVEPOINT, ROLLBACK)
+        int name = 0;
+        if (type == TYPE_SAVEPOINT || type == TYPE_ROLLBACK) {
+            name = u8(log, pay + 4);
+            if (name < NAME_BYTE_MIN || name > NAME_BYTE_MAX) {
+                throw new WalException(Code.BAD_NAME, p);
+            }
+        }
+
+        // R17: Reused id (BEGIN)
+        if (type == TYPE_BEGIN) {
+            if (seenBeginTxns.contains(txn)) {
+                throw new WalException(Code.DUPLICATE_TXN, p);
+            }
+        }
+
+        // R18: Open limit (BEGIN)
+        if (type == TYPE_BEGIN) {
+            if (openTxns.size() >= MAX_OPEN_TXNS) {
+                throw new WalException(Code.TOO_MANY_OPEN, p);
+            }
+        }
+
+        // R19: Open check (PUT, DELETE, COMMIT, ABORT, SAVEPOINT, ROLLBACK, READ)
+        Txn openTxn = null;
+        if (type != TYPE_BEGIN && type != TYPE_CHECKPOINT) {
+            openTxn = openTxns.get(txn);
+            if (openTxn == null) {
+                throw new WalException(Code.TXN_NOT_OPEN, p);
+            }
+        }
+
+        // R19a: Write limit (PUT, DELETE)
+        if (type == TYPE_PUT || type == TYPE_DELETE) {
+            if (openTxn.writes.size() >= MAX_WRITES) {
+                throw new WalException(Code.TXN_TOO_LARGE, p);
+            }
+        }
+
+        // R19b: Savepoint check (ROLLBACK)
+        if (type == TYPE_ROLLBACK) {
+            if (!openTxn.savepoints.containsKey(name)) {
+                throw new WalException(Code.NO_SAVEPOINT, p);
+            }
+        }
+
+        // R19c: Checkpoint check (CHECKPOINT)
+        if (type == TYPE_CHECKPOINT) {
+            if (c != openTxns.size()) {
+                throw new WalException(Code.CHECKPOINT_MISMATCH, p);
+            }
+            Iterator<Long> it = openTxns.keySet().iterator();
+            for (int i = 0; i < c; i++) {
+                long listedId = u32(log, pay + 1 + 4 * i);
+                if (listedId != it.next()) {
+                    throw new WalException(Code.CHECKPOINT_MISMATCH, p);
+                }
+            }
+        }
+
+        // R19d: Read check (READ)
+        String keyStr = null;
+        if (type == TYPE_PUT || type == TYPE_DELETE || type == TYPE_READ) {
+            keyStr = decodeLatin1(log, pay + 5, k);
+        }
+        if (type == TYPE_READ) {
+            String viewValue = openTxn.viewOf(keyStr);
+            if (f == 0) {
+                if (viewValue != null) {
+                    throw new WalException(Code.READ_MISMATCH, p);
+                }
+            } else {
+                String expectedValue = decodeLatin1(log, valOffset, v);
+                if (viewValue == null || !viewValue.equals(expectedValue)) {
+                    throw new WalException(Code.READ_MISMATCH, p);
+                }
+            }
+        }
+
+        // Actions (R20 to R23d)
+        switch (type) {
+            case TYPE_BEGIN -> {
+                // R20
+                seenBeginTxns.add(txn);
+                openTxns.put(txn, new Txn(p, new HashMap<>(state)));
+            }
+            case TYPE_PUT -> {
+                // R21
+                String valStr = decodeLatin1(log, valOffset, v);
+                openTxn.writes.add(new Write(keyStr, valStr, false));
+            }
+            case TYPE_DELETE -> {
+                // R21
+                openTxn.writes.add(new Write(keyStr, null, true));
+            }
+            case TYPE_COMMIT -> {
+                // R22
+                boolean conflicts = hasConflict(openTxn, committedHistory);
+                if (!conflicts) {
+                    Set<String> writtenKeys = new HashSet<>();
+                    for (Write w : openTxn.writes) {
+                        writtenKeys.add(w.key);
+                        if (w.isDelete) {
+                            state.remove(w.key);
+                        } else {
+                            state.put(w.key, w.value);
+                        }
+                    }
+                    committedHistory.add(new CommittedTxn(p, writtenKeys));
+                    committed.add(txn);
+                } else {
+                    aborted.add(txn);
+                }
+                openTxns.remove(txn);
+            }
+            case TYPE_ABORT -> {
+                // R23
+                aborted.add(txn);
+                openTxns.remove(txn);
+            }
+            case TYPE_SAVEPOINT -> {
+                // R23a
+                openTxn.savepoints.put(name, new Savepoint(openTxn.writes.size(), p));
+            }
+            case TYPE_ROLLBACK -> {
+                // R23b
+                Savepoint sp = openTxn.savepoints.get(name);
+                openTxn.writes.subList(sp.position, openTxn.writes.size()).clear();
+                int targetName = name;
+                int spOffset = sp.setOffset;
+                openTxn.savepoints.entrySet().removeIf(
+                        e -> e.getKey() != targetName && e.getValue().setOffset > spOffset
+                );
+            }
+            case TYPE_CHECKPOINT -> {
+                // R23c: no-op
+            }
+            case TYPE_READ -> {
+                // R23d
+                openTxn.readSet.add(keyStr);
+            }
+        }
+    }
+
+    private static boolean hasConflict(Txn txn, List<CommittedTxn> committedHistory) {
+        if (txn.readSet.isEmpty()) {
+            return false;
+        }
+        for (CommittedTxn other : committedHistory) {
+            if (other.commitOffset > txn.beginOffset) {
+                for (String readKey : txn.readSet) {
+                    if (other.writtenKeys.contains(readKey)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean checksumMatches(byte[] log, int p, int n) {
+        int s1 = 0;
+        int s2 = 0;
+        int end = p + 3 + n;
+        for (int i = p; i < end; i++) {
+            s1 = (s1 + (log[i] & 0xFF)) % 255;
+            s2 = (s2 + s1) % 255;
+        }
+        int storedS2 = log[end] & 0xFF;
+        int storedS1 = log[end + 1] & 0xFF;
+        return storedS2 == s2 && storedS1 == s1;
+    }
+
+    private static int u8(byte[] log, int offset) {
+        return log[offset] & 0xFF;
+    }
+
+    private static int u16(byte[] log, int offset) {
+        return ((log[offset] & 0xFF) << 8) | (log[offset + 1] & 0xFF);
+    }
+
+    private static long u32(byte[] log, int offset) {
+        return ((long) (log[offset] & 0xFF) << 24)
+                | ((long) (log[offset + 1] & 0xFF) << 16)
+                | ((long) (log[offset + 2] & 0xFF) << 8)
+                | ((long) (log[offset + 3] & 0xFF));
+    }
+
+    private static String decodeLatin1(byte[] log, int offset, int length) {
+        if (length == 0) {
+            return "";
+        }
+        return new String(log, offset, length, StandardCharsets.ISO_8859_1);
+    }
+
+    private static Result emptyResult(int validLength, boolean tornTail) {
+        return new Result(
+                Collections.emptyMap(),
+                Collections.emptyList(),
+                Collections.emptyList(),
+                Collections.emptyList(),
+                validLength,
+                tornTail
+        );
+    }
+
+    private record IntactRecord(int offset, int type, int payloadLen) {}
+
+    private record Write(String key, String value, boolean isDelete) {}
+
+    private record Savepoint(int position, int setOffset) {}
+
+    private record CommittedTxn(int commitOffset, Set<String> writtenKeys) {}
+
+    private static final class Txn {
+        final int beginOffset;
+        final Map<String, String> snapshot;
+        final List<Write> writes = new ArrayList<>();
+        final Map<Integer, Savepoint> savepoints = new HashMap<>();
+        final Set<String> readSet = new HashSet<>();
+
+        Txn(int beginOffset, Map<String, String> snapshot) {
+            this.beginOffset = beginOffset;
+            this.snapshot = snapshot;
+        }
+
+        String viewOf(String key) {
+            for (int i = writes.size() - 1; i >= 0; i--) {
+                Write w = writes.get(i);
+                if (w.key.equals(key)) {
+                    return w.isDelete ? null : w.value;
+                }
+            }
+            return snapshot.get(key);
+        }
+    }
+
+    public record Result(Map<String, String> state,
+                         List<Long> committed,
+                         List<Long> aborted,
+                         List<Long> incomplete,
+                         int validLength,
+                         boolean tornTail) {}
+
+    public enum Code {
+        BAD_MAGIC, UNKNOWN_TYPE, RECORD_TOO_LARGE, CHECKSUM_MISMATCH,
+        MALFORMED_PAYLOAD, BAD_TXN_ID, BAD_KEY, BAD_VALUE,
+        DUPLICATE_TXN, TOO_MANY_OPEN, TXN_NOT_OPEN,
+        TXN_TOO_LARGE, BAD_NAME, NO_SAVEPOINT,
+        CHECKPOINT_MISMATCH, READ_MISMATCH
+    }
+
+    public static final class WalException extends Exception {
+        private final Code code;
+        private final int offset;
+        public WalException(Code code, int offset) {
+            super(code + "@" + offset);
+            this.code = code;
+            this.offset = offset;
+        }
+        public Code code() { return code; }
+        public int offset() { return offset; }
+    }
+}
+```

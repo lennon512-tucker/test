@@ -24,7 +24,9 @@ import java.util.List;
  * G precedence and interactions (H53-H61), H API contract (H62-H63),
  * I coverage gaps found by the P7 audit (H64-H69), J write limit L1 (H70-H77),
  * K savepoints L2 (H78-H99), L coverage gaps found by the v3 audit (H100-H101),
- * M checkpoints L3 (H102-H118, H119-H123 added by the v4 audit).
+ * M checkpoints L3 (H102-H118, H119-H123 added by the v4 audit), N snapshot reads and read
+ * conflicts L4 (H124-H141), O ranges and phantom conflicts L6 (H142-H156), v5-audit additions
+ * (H163-H173), P scale L5 (H157-H162, kept last).
  */
 public final class HiddenTests {
     private HiddenTests() {}
@@ -146,13 +148,13 @@ public final class HiddenTests {
         // H09 tail_three_leftover_bytes_unknown_type_is_error
         // Rules: R6, R7
         // Derivation:
-        //   1. Header ok. BEGIN 1 @4, size 9, ends 13 (1C 06). Then bytes 09 00 00 @13. L = 16.
+        //   1. Header ok. BEGIN 1 @4, size 9, ends 13 (1C 06). Then bytes 0B 00 00 @13. L = 16.
         //   2. p = 4: intact as in H08 (R9 13 <= 16), p = 13.
-        //   3. p = 13: R5 13 != 16; R6 L-p = 3, not 1 or 2; R7 type byte 09 is not 1..8 ->
+        //   3. p = 13: R5 13 != 16; R6 L-p = 3, not 1 or 2; R7 type byte 0B (11) is not 1..10 ->
         //      throw UNKNOWN_TYPE at 13.
         // Expected: ERR UNKNOWN_TYPE@13
         c.add(TestCase.of("H09", "tail_three_leftover_bytes_unknown_type_is_error", "R6,R7",
-                LogBuilder.wal().begin(1).bytes(0x09, 0x00, 0x00).build(),
+                LogBuilder.wal().begin(1).bytes(0x0B, 0x00, 0x00).build(),
                 "ERR UNKNOWN_TYPE@13"));
 
         // H10 frame_type_zero_in_middle
@@ -163,25 +165,25 @@ public final class HiddenTests {
         //      correct checksum (00 00 04 00 00 00 01; s1 0,0,4,4,4,4,5; s2 0,0,4,8,12,16,21
         //      -> 15 05). COMMIT 1 @22, size 9, ends 31 (31 09). L = 31.
         //   2. p = 4: intact (R9 13 <= 31, R10 correct), p = 13.
-        //   3. p = 13: R5 no; R6 L-p = 18; R7 type 0 is not 1..8 -> throw UNKNOWN_TYPE at 13.
+        //   3. p = 13: R5 no; R6 L-p = 18; R7 type 0 is not 1..10 -> throw UNKNOWN_TYPE at 13.
         //      (Frame size and checksum are fine; only the type is wrong.)
         // Expected: ERR UNKNOWN_TYPE@13
         c.add(TestCase.of("H10", "frame_type_zero_in_middle", "R7",
                 LogBuilder.wal().begin(1).record(0, Hex.bytes("00 00 00 01")).commit(1).build(),
                 "ERR UNKNOWN_TYPE@13"));
 
-        // H11 frame_type_nine_first_record
+        // H11 frame_type_eleven_first_record
         // Rules: R7
-        // Derivation (re-derived for PROMPT.md v4, where type 8 is CHECKPOINT; v2 used type 6
-        // and v3 used type 8 here):
-        //   1. Header ok. Record @4: type 09, N = 4, payload 00 00 00 01, size 9, ends 13,
-        //      correct checksum (09 00 04 00 00 00 01; s1 9,9,13,13,13,13,14;
-        //      s2 9,18,31,44,57,70,84 -> 54 0E). BEGIN 1 @13, size 9, ends 22 (1C 06). L = 22.
-        //   2. p = 4: R5 4 != 22; R6 L-p = 18; R7 type 9 is not 1, 2, 3, 4, 5, 6, 7 or 8 (one
-        //      above CHECKPOINT = 8) -> throw UNKNOWN_TYPE at 4.
+        // Derivation (re-derived for PROMPT.md v5, where types 9 and 10 are READ and RANGE;
+        // v2 used type 6, v3 type 8 and v4 type 9 here):
+        //   1. Header ok. Record @4: type 0B (11), N = 4, payload 00 00 00 01, size 9, ends 13,
+        //      correct checksum (0B 00 04 00 00 00 01; s1 11,11,15,15,15,15,16;
+        //      s2 11,22,37,52,67,82,98 -> 62 10). BEGIN 1 @13, size 9, ends 22 (1C 06). L = 22.
+        //   2. p = 4: R5 4 != 22; R6 L-p = 18; R7 type 11 is not 1, 2, 3, 4, 5, 6, 7, 8, 9 or 10
+        //      (one above RANGE = 10) -> throw UNKNOWN_TYPE at 4.
         // Expected: ERR UNKNOWN_TYPE@4
-        c.add(TestCase.of("H11", "frame_type_nine_first_record", "R7",
-                LogBuilder.wal().record(9, Hex.bytes("00 00 00 01")).begin(1).build(),
+        c.add(TestCase.of("H11", "frame_type_eleven_first_record", "R7",
+                LogBuilder.wal().record(11, Hex.bytes("00 00 00 01")).begin(1).build(),
                 "ERR UNKNOWN_TYPE@4"));
 
         // H12 tail_payload_cut_short_is_torn
@@ -336,21 +338,21 @@ public final class HiddenTests {
 
         // H20 frame_last_record_unknown_type_bad_checksum_is_error
         // Rules: R7, R10
-        // Derivation (re-derived for PROMPT.md v4, where type 8 is CHECKPOINT; v2 used type 7
-        // and v3 used type 8 here):
-        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). Record @13: type 09, N = 4, payload
+        // Derivation (re-derived for PROMPT.md v5, where types 9 and 10 are READ and RANGE;
+        // v2 used type 7, v3 type 8 and v4 type 9 here):
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). Record @13: type 0B (11), N = 4, payload
         //      00 00 00 01, stored checksum 00 00 (written with frame()), size 9, ends 22. Its
-        //      correct checksum would be 54 0E (09 00 04 00 00 00 01; s1 9,9,13,13,13,13,14;
-        //      s2 9,18,31,44,57,70,84), so the stored one is wrong. L = 22.
+        //      correct checksum would be 62 10 (0B 00 04 00 00 00 01; s1 11,11,15,15,15,15,16;
+        //      s2 11,22,37,52,67,82,98), so the stored one is wrong. L = 22.
         //   2. p = 4: intact, p = 13.
-        //   3. p = 13: R5 13 != 22; R6 L-p = 9; R7 type 9 is not 1..8 -> throw UNKNOWN_TYPE at 13.
+        //   3. p = 13: R5 13 != 22; R6 L-p = 9; R7 type 11 is not 1..10 -> throw UNKNOWN_TYPE at 13.
         //      R7 comes before R10, so the torn tail that R10 would give (wrong checksum,
         //      13+5+4 = 22 = L) is never reached (section 7.2: "R7 and R8 apply to every record
         //      with at least 3 bytes left at p, including ... a last record whose checksum is
         //      wrong (R10)").
         // Expected: ERR UNKNOWN_TYPE@13
         c.add(TestCase.of("H20", "frame_last_record_unknown_type_bad_checksum_is_error", "R7,R10",
-                LogBuilder.wal().begin(1).frame(9, 4, Hex.bytes("00 00 00 01"), 0x0000).build(),
+                LogBuilder.wal().begin(1).frame(11, 4, Hex.bytes("00 00 00 01"), 0x0000).build(),
                 "ERR UNKNOWN_TYPE@13"));
 
         // =====================================================================================
@@ -1067,7 +1069,7 @@ public final class HiddenTests {
         //      (R15), txn 0 not open (R19). R13: 11 >= 5, k = 3, 11 >= 10, v = 1, 11 = 7+3+1
         //      ok. R14 txn 0 -> throw BAD_TXN_ID at 13.
         //   4. Deciding rule P4: "Within one record, the first failing check in the order R13,
-        //      R14, R15, R16, R16a, R17, R18, R19, R19a, R19b, R19c decides the code."
+        //      R14, R15, R16, R16a, R17, R18, R19, R19a, R19b, R19c, R19d, R19e decides the code."
         // Expected: ERR BAD_TXN_ID@13
         c.add(TestCase.of("H55", "prec_bad_txn_id_before_bad_key_same_record", "P4,R14,R15",
                 LogBuilder.wal().begin(1).put(0, "a b", "1").commit(1).build(),
@@ -1083,7 +1085,7 @@ public final class HiddenTests {
         //      which never had a BEGIN (R19). R13 9 = 7+1+1; R14 txn 2; R15 key byte E9 = 233
         //      > KEY_BYTE_MAX 7E = 126 -> throw BAD_KEY at 13.
         //   4. Deciding rule P4: "So the field checks (R13 to R16a) always come before the
-        //      transaction checks (R17 to R19c)."
+        //      transaction checks (R17 to R19e)."
         // Expected: ERR BAD_KEY@13
         c.add(TestCase.of("H56", "prec_bad_key_before_txn_not_open", "P4,R15,R19",
                 LogBuilder.wal().begin(1).put(2, "\u00E9", "1").commit(1).build(),
@@ -1320,8 +1322,8 @@ public final class HiddenTests {
         //      problems: txn 0 (R14) and 4 = MAX_OPEN_TXNS transactions open (R18).
         //      R13 N = 4 ok; R14 txn = 0 -> throw BAD_TXN_ID at 40.
         //   4. Deciding rule P4: "Within one record, the first failing check in the order R13,
-        //      R14, R15, R16, R16a, R17, R18, R19, R19a, R19b, R19c decides the code. So the field
-        //      checks (R13 to R16a) always come before the transaction checks (R17 to R19c)."
+        //      R14, R15, R16, R16a, R17, R18, R19, R19a, R19b, R19c, R19d, R19e decides the code. So the field
+        //      checks (R13 to R16a) always come before the transaction checks (R17 to R19e)."
         // Expected: ERR BAD_TXN_ID@40
         c.add(TestCase.of("H68", "prec_bad_txn_id_before_too_many_open", "P4,R14,R18",
                 LogBuilder.wal().begin(1).begin(2).begin(3).begin(4).begin(0).build(),
@@ -1338,7 +1340,7 @@ public final class HiddenTests {
         //      which never had a BEGIN (R19). R13 9 = 7+1+1 ok; R14 txn 9 != 0; R15 key 61 ok;
         //      R16 value byte 0A < VALUE_BYTE_MIN 20 -> throw BAD_VALUE at 13.
         //   4. Deciding rule P4: "So the field checks (R13 to R16a) always come before the
-        //      transaction checks (R17 to R19c)."
+        //      transaction checks (R17 to R19e)."
         // Expected: ERR BAD_VALUE@13
         c.add(TestCase.of("H69", "prec_bad_value_before_txn_not_open", "P4,R16,R19",
                 LogBuilder.wal().begin(1).put(9, "a", "\n").commit(1).build(),
@@ -1654,7 +1656,7 @@ public final class HiddenTests {
         //   2. Phase 1: all 11 intact; p = 154 = L (R5).
         //   3. Phase 2: BEGIN 1 opens; the 8 PUTs -> list1 has 8 writes (R19a 0..7 before each).
         //      SAVEPOINT @125: R13 N = 5; R14; R16a 78 ok; R19 open. R19a applies only to PUT
-        //      and DELETE ("SAVEPOINT, ROLLBACK and CHECKPOINT records are not writes and never count") ->
+        //      and DELETE ("SAVEPOINT, ROLLBACK, CHECKPOINT, READ and RANGE records are not writes and never count") ->
         //      R23a: sp1 {x: 8 @125}.
         //      ROLLBACK @135: R19b x exists -> R23b keeps the first 8 writes (removes none,
         //      Not errors item 13); no savepoint set after 125; list1 still 8 writes.
@@ -1678,7 +1680,7 @@ public final class HiddenTests {
         //      R13 9 = 7+1+1 ok; R14 txn 1; R15 key 69 ok; R16 value byte 7F > VALUE_BYTE_MAX
         //      7E -> throw BAD_VALUE at 125.
         //   4. Deciding rule P4: "So the field checks (R13 to R16a) always come before the
-        //      transaction checks (R17 to R19c)."
+        //      transaction checks (R17 to R19e)."
         // Expected: ERR BAD_VALUE@125
         c.add(TestCase.of("H76", "prec_bad_value_before_txn_too_large", "P4,R16,R19a",
                 LogBuilder.wal().begin(1).put(1, "a", "1").put(1, "b", "2").put(1, "c", "3")
@@ -1739,7 +1741,7 @@ public final class HiddenTests {
         //   3. Phase 2: BEGIN 1 opens. SAVEPOINT @13 has two problems: N = 6 (R13) and name
         //      byte 20 (payload byte 4, R16a). R13: N = 6 != 5 -> throw MALFORMED_PAYLOAD at 13.
         //   4. Deciding rule P4: "Within one record, the first failing check in the order R13,
-        //      R14, R15, R16, R16a, R17, R18, R19, R19a, R19b, R19c decides the code."
+        //      R14, R15, R16, R16a, R17, R18, R19, R19a, R19b, R19c, R19d, R19e decides the code."
         // Expected: ERR MALFORMED_PAYLOAD@13
         c.add(TestCase.of("H79", "prec_malformed_before_bad_name_savepoint_n6", "P4,R13,R16a",
                 LogBuilder.wal().begin(1).record(6, Hex.bytes("00 00 00 01 20 73")).commit(1).build(),
@@ -1800,7 +1802,7 @@ public final class HiddenTests {
         //      problems: name byte 7F (R16a) and no savepoint named 7F (R19b). R13 N = 5; R14
         //      txn 1; R16a 7F > NAME_BYTE_MAX 7E -> throw BAD_NAME at 23.
         //   4. Deciding rule P4: "So the field checks (R13 to R16a) always come before the
-        //      transaction checks (R17 to R19c)."
+        //      transaction checks (R17 to R19e)."
         // Expected: ERR BAD_NAME@23
         c.add(TestCase.of("H83", "rb_name_0x7f_is_bad_name_before_no_savepoint", "P4,R16a,R19b",
                 LogBuilder.wal().begin(1).savepoint(1, 0x73).rollback(1, 0x7F).commit(1).build(),
@@ -1838,7 +1840,7 @@ public final class HiddenTests {
         //      problems: txn 0 (R14), name byte 20 (R16a), txn 0 not open (R19). R13 N = 5 ok;
         //      R14 txn = 0 -> throw BAD_TXN_ID at 23.
         //   4. Deciding rule P4: "Within one record, the first failing check in the order R13,
-        //      R14, R15, R16, R16a, R17, R18, R19, R19a, R19b, R19c decides the code."
+        //      R14, R15, R16, R16a, R17, R18, R19, R19a, R19b, R19c, R19d, R19e decides the code."
         // Expected: ERR BAD_TXN_ID@23
         c.add(TestCase.of("H85", "prec_bad_txn_id_before_bad_name", "P4,R14,R16a",
                 LogBuilder.wal().begin(1).savepoint(1, 0x73).rollback(0, 0x20).commit(1).build(),
@@ -2097,7 +2099,7 @@ public final class HiddenTests {
         //   3. Phase 2: [a=1]; sp1 {s: 1 @27}; [a=1, b=2]; ROLLBACK -> [a=1]; [a=1, c=3].
         //      ABORT 1: R19 open -> the writes are discarded without being applied; aborted [1];
         //      savepoints discarded (R23).
-        //   4. State {}; "SAVEPOINT, ROLLBACK and CHECKPOINT records add nothing to these lists" (R25), so
+        //   4. State {}; "SAVEPOINT, ROLLBACK, CHECKPOINT, READ and RANGE records add nothing to these lists" (R25), so
         //      committed [] and aborted [1].
         // Expected: OK state={} committed=[] aborted=[1] incomplete=[] validLength=84 tornTail=false
         c.add(TestCase.of("H97", "rb_then_abort_applies_nothing", "R23,R23b,R25",
@@ -2173,7 +2175,7 @@ public final class HiddenTests {
         //      R13 N = 8 >= 5, k = 3, 8 = 5+3 ok; R14 txn 1; R15 k = 3 is in 1..32, but key byte
         //      20 < KEY_BYTE_MIN 21 -> throw BAD_KEY at 125.
         //   4. Deciding rule P4: "So the field checks (R13 to R16a) always come before the
-        //      transaction checks (R17 to R19c)." (Checking R19a first would give
+        //      transaction checks (R17 to R19e)." (Checking R19a first would give
         //      TXN_TOO_LARGE@125.)
         // Expected: ERR BAD_KEY@125
         c.add(TestCase.of("H100", "prec_bad_key_before_txn_too_large", "P4,R15,R19a",
@@ -2605,6 +2607,809 @@ public final class HiddenTests {
                 LogBuilder.wal().begin(1).checkpoint().commit(1).build(),
                 "ERR CHECKPOINT_MISMATCH@13"));
 
+        // =====================================================================================
+        // Group N: L4 snapshot reads and read conflicts (PROMPT.md v5: type 9 READ, R13, R15,
+        // R16, R19, R19d, R20, R22, R23d, R25, section 10 items 3, 18-20). Record sizes used
+        // below (section 5.3): BEGIN/COMMIT/ABORT 9; PUT k=1 v=1 14; PUT k=2 v=1 15; DELETE
+        // k=1 11; SAVEPOINT/ROLLBACK 10; READ f=0 k=1 11+1 = 12; READ f=0 k=3 14; READ f=1 k=1
+        // v=1 13+1+1 = 15; RANGE k1=k2=1 15+2 = 17. Checksums are written by LogBuilder; the new
+        // record kinds are checked byte for byte against hand traces in HarnessCheck
+        // (read_absent_record, read_value_record, range_record).
+        // =====================================================================================
+
+        // H124 read_own_put_decides_view
+        // Rules: R19d, R21, R22
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4 (ends 13), PUT 1 a=1 @13 (ends 27), READ 1 a = "1" @27
+        //      (f = 1, ends 42), COMMIT 1 @42 (ends 51). L = 51. Phase 1: all intact (types 1, 2,
+        //      9, 4); p = 51 = L (R5).
+        //   2. Phase 2: BEGIN 1: snapshot {} (R20). PUT -> list [a=1]. READ @27: R13 N = 10 =
+        //      8+1+1; R15 key 61; R16 value 31; R19 open; R19d the list holds a write of a, the
+        //      last one is PUT a=1 -> view present "1" = expected -> match. R23d read set {a}.
+        //   3. COMMIT 1: no other transaction committed after BEGIN 1 -> no conflict; apply a=1.
+        // Expected: OK state={"a"="1"} committed=[1] aborted=[] incomplete=[] validLength=51 tornTail=false
+        c.add(TestCase.of("H124", "read_own_put_decides_view", "R19d,R21,R22",
+                LogBuilder.wal().begin(1).put(1, "a", "1").read(1, "a", "1").commit(1).build(),
+                "OK state={\"a\"=\"1\"} committed=[1] aborted=[] incomplete=[] validLength=51 tornTail=false"));
+
+        // H125 read_uses_snapshot_not_later_commit
+        // Rules: R19d, R20, R23
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, BEGIN 2 @13, PUT 2 a=2 @22 (ends 36), COMMIT 2 @36 (ends
+        //      45), READ 1 a absent @45 (ends 57), ABORT 1 @57 (ends 66). L = 66. All intact.
+        //   2. Phase 2: BEGIN 1: snapshot of txn 1 = {} (R20). BEGIN 2. PUT 2 -> list2 [a=2].
+        //      COMMIT 2: txn 2 has no READ/RANGE -> no conflict; state {a=2}.
+        //   3. READ 1 a absent @45: txn 1's list has no write of a -> its snapshot decides: {}
+        //      has no a -> view absent = expected (f = 0) -> match ("The current state is never
+        //      used by this check"). ABORT 1 -> aborted [1].
+        // Expected: OK state={"a"="2"} committed=[2] aborted=[1] incomplete=[] validLength=66 tornTail=false
+        c.add(TestCase.of("H125", "read_uses_snapshot_not_later_commit", "R19d,R20,R23",
+                LogBuilder.wal().begin(1).begin(2).put(2, "a", "2").commit(2).readAbsent(1, "a").abort(1).build(),
+                "OK state={\"a\"=\"2\"} committed=[2] aborted=[1] incomplete=[] validLength=66 tornTail=false"));
+
+        // H126 read_expecting_current_state_is_mismatch
+        // Rules: R19d, R20
+        // Derivation:
+        //   1. As H125, but READ 1 a = "2" @45 (f = 1, ends 60), ABORT 1 @60 (ends 69). L = 69.
+        //   2. Phase 2: state {a=2} after COMMIT 2, but txn 1's snapshot is {} (taken at BEGIN 1
+        //      @4). READ @45: view of a = absent (no own write, snapshot has no a); expected
+        //      present "2" -> throw READ_MISMATCH at 45.
+        // Expected: ERR READ_MISMATCH@45
+        c.add(TestCase.of("H126", "read_expecting_current_state_is_mismatch", "R19d,R20",
+                LogBuilder.wal().begin(1).begin(2).put(2, "a", "2").commit(2).read(1, "a", "2").abort(1).build(),
+                "ERR READ_MISMATCH@45"));
+
+        // H127 read_after_own_delete_is_absent
+        // Rules: R19d, R22
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, PUT 1 a=1 @13, COMMIT 1 @27 (ends 36), BEGIN 2 @36, DELETE
+        //      2 a @45 (ends 56), READ 2 a absent @56 (ends 68), COMMIT 2 @68 (ends 77). L = 77.
+        //   2. Phase 2: txn 1 commits a=1. BEGIN 2: snapshot {a=1}. DELETE -> list2 [del a].
+        //      READ @56: the last write of a in list2 is a DELETE -> view absent = expected.
+        //   3. COMMIT 2: read set {a}; no transaction committed after BEGIN 2 @36 -> no
+        //      conflict; apply del a -> state {}. committed [1, 2].
+        // Expected: OK state={} committed=[1, 2] aborted=[] incomplete=[] validLength=77 tornTail=false
+        c.add(TestCase.of("H127", "read_after_own_delete_is_absent", "R19d,R22",
+                LogBuilder.wal().begin(1).put(1, "a", "1").commit(1).begin(2).del(2, "a").readAbsent(2, "a").commit(2).build(),
+                "OK state={} committed=[1, 2] aborted=[] incomplete=[] validLength=77 tornTail=false"));
+
+        // H128 read_after_rollback_falls_back_to_snapshot
+        // Rules: R19d, R23a, R23b
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, PUT 1 a=1 @13, COMMIT 1 @27 (ends 36), BEGIN 2 @36,
+        //      SAVEPOINT 2 s @45 (ends 55), PUT 2 a=9 @55 (ends 69), ROLLBACK 2 s @69 (ends 79),
+        //      READ 2 a = "1" @79 (ends 94), COMMIT 2 @94 (ends 103). L = 103.
+        //   2. Phase 2: state {a=1}. BEGIN 2: snapshot {a=1}. SAVEPOINT s position 0; PUT a=9;
+        //      ROLLBACK s keeps 0 writes -> list2 [] (R23b). READ @79: no write of a in the list
+        //      -> snapshot: present "1" = expected -> match.
+        //   3. COMMIT 2: no conflict (nothing committed after BEGIN 2), no writes. committed [1, 2].
+        // Expected: OK state={"a"="1"} committed=[1, 2] aborted=[] incomplete=[] validLength=103 tornTail=false
+        c.add(TestCase.of("H128", "read_after_rollback_falls_back_to_snapshot", "R19d,R23a,R23b",
+                LogBuilder.wal().begin(1).put(1, "a", "1").commit(1).begin(2).savepoint(2, 0x73).put(2, "a", "9")
+                        .rollback(2, 0x73).read(2, "a", "1").commit(2).build(),
+                "OK state={\"a\"=\"1\"} committed=[1, 2] aborted=[] incomplete=[] validLength=103 tornTail=false"));
+
+        // H129 read_conflict_turns_commit_into_abort
+        // Rules: R22, R23d, R25
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, BEGIN 2 @13, READ 1 a absent @22 (ends 34), PUT 1 b=1 @34
+        //      (ends 48), PUT 2 a=2 @48 (ends 62), COMMIT 2 @62 (ends 71), COMMIT 1 @71 (ends 80).
+        //      L = 80. All intact.
+        //   2. Phase 2: READ 1 a: snapshot {} -> absent, match; read set1 {a}. COMMIT 2: txn 2 has
+        //      no READ/RANGE -> no conflict; state {a=2}; written keys {a}.
+        //   3. COMMIT 1 @71: U = txn 2 was committed by R22, its COMMIT @62 lies after BEGIN 1 @4
+        //      and before @71, and its written keys {a} include a, which is in read set1 ->
+        //      conflict: discard list1 [b=1], append 1 to aborted (R22, R25). Not an error.
+        // Expected: OK state={"a"="2"} committed=[2] aborted=[1] incomplete=[] validLength=80 tornTail=false
+        c.add(TestCase.of("H129", "read_conflict_turns_commit_into_abort", "R22,R23d,R25",
+                LogBuilder.wal().begin(1).begin(2).readAbsent(1, "a").put(1, "b", "1").put(2, "a", "2")
+                        .commit(2).commit(1).build(),
+                "OK state={\"a\"=\"2\"} committed=[2] aborted=[1] incomplete=[] validLength=80 tornTail=false"));
+
+        // H130 write_write_without_reads_never_conflicts
+        // Rules: R22, section 10 item 18
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, BEGIN 2 @13, PUT 1 a=1 @22, PUT 2 a=2 @36, COMMIT 2 @50
+        //      (ends 59), COMMIT 1 @59 (ends 68). L = 68. All intact.
+        //   2. Phase 2: COMMIT 2 -> state {a=2}. COMMIT 1: read set and read ranges of txn 1 are
+        //      empty -> "a transaction without READ and RANGE records never conflicts" ->
+        //      committed, a=1 replaces a=2. committed [2, 1].
+        // Expected: OK state={"a"="1"} committed=[2, 1] aborted=[] incomplete=[] validLength=68 tornTail=false
+        c.add(TestCase.of("H130", "write_write_without_reads_never_conflicts", "R22",
+                LogBuilder.wal().begin(1).begin(2).put(1, "a", "1").put(2, "a", "2").commit(2).commit(1).build(),
+                "OK state={\"a\"=\"1\"} committed=[2, 1] aborted=[] incomplete=[] validLength=68 tornTail=false"));
+
+        // H131 conflict_aborted_txn_makes_no_conflict
+        // Rules: R22, R25
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, BEGIN 2 @13, BEGIN 3 @22, READ 3 b absent @31 (ends 43),
+        //      READ 1 a absent @43 (ends 55), PUT 2 a=2 @55 (ends 69), PUT 1 b=1 @69 (ends 83),
+        //      COMMIT 2 @83, COMMIT 1 @92, COMMIT 3 @101 (ends 110). L = 110. All intact.
+        //   2. Phase 2: reads match (snapshots {}). COMMIT 2: no reads -> committed, a=2, written
+        //      {a}. COMMIT 1: txn 2 committed @83 after BEGIN 1 @4, wrote a, a in read set1 ->
+        //      conflict -> aborted, b=1 discarded.
+        //   3. COMMIT 3: read set3 {b}. Committed after BEGIN 3 @22: only txn 2 (wrote {a}, no b).
+        //      Txn 1 wrote b in its list, but it was aborted by R22 and "never makes another
+        //      transaction conflict" -> txn 3 committed (no writes).
+        // Expected: OK state={"a"="2"} committed=[2, 3] aborted=[1] incomplete=[] validLength=110 tornTail=false
+        c.add(TestCase.of("H131", "conflict_aborted_txn_makes_no_conflict", "R22,R25",
+                LogBuilder.wal().begin(1).begin(2).begin(3).readAbsent(3, "b").readAbsent(1, "a").put(2, "a", "2")
+                        .put(1, "b", "1").commit(2).commit(1).commit(3).build(),
+                "OK state={\"a\"=\"2\"} committed=[2, 3] aborted=[1] incomplete=[] validLength=110 tornTail=false"));
+
+        // H132 commit_before_begin_is_not_a_conflict
+        // Rules: R22, R19d
+        // Derivation:
+        //   1. Header ok. BEGIN 2 @4, PUT 2 a=2 @13, COMMIT 2 @27 (ends 36), BEGIN 1 @36, READ 1
+        //      a = "2" @45 (ends 60), COMMIT 1 @60 (ends 69). L = 69. All intact.
+        //   2. Phase 2: state {a=2}; BEGIN 1: snapshot {a=2}. READ: present "2" = expected.
+        //   3. COMMIT 1: txn 2's COMMIT @27 does not lie after BEGIN 1 @36 -> it does not count
+        //      -> no conflict -> committed. committed [2, 1].
+        // Expected: OK state={"a"="2"} committed=[2, 1] aborted=[] incomplete=[] validLength=69 tornTail=false
+        c.add(TestCase.of("H132", "commit_before_begin_is_not_a_conflict", "R19d,R22",
+                LogBuilder.wal().begin(2).put(2, "a", "2").commit(2).begin(1).read(1, "a", "2").commit(1).build(),
+                "OK state={\"a\"=\"2\"} committed=[2, 1] aborted=[] incomplete=[] validLength=69 tornTail=false"));
+
+        // H133 rolled_back_write_is_not_a_written_key
+        // Rules: R22, R23b
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, BEGIN 2 @13, READ 1 a absent @22 (ends 34), SAVEPOINT 2 s
+        //      @34 (ends 44), PUT 2 a=2 @44 (ends 58), ROLLBACK 2 s @58 (ends 68), PUT 2 b=2 @68
+        //      (ends 82), COMMIT 2 @82 (ends 91), COMMIT 1 @91 (ends 100). L = 100.
+        //   2. Phase 2: ROLLBACK removes PUT a=2 -> list2 [b=2]. COMMIT 2: committed, state
+        //      {b=2}, written keys "at the time it was committed" {b}.
+        //   3. COMMIT 1: read set1 {a}; txn 2's written keys {b} do not include a -> no conflict
+        //      -> committed (no writes).
+        // Expected: OK state={"b"="2"} committed=[2, 1] aborted=[] incomplete=[] validLength=100 tornTail=false
+        c.add(TestCase.of("H133", "rolled_back_write_is_not_a_written_key", "R22,R23b",
+                LogBuilder.wal().begin(1).begin(2).readAbsent(1, "a").savepoint(2, 0x73).put(2, "a", "2")
+                        .rollback(2, 0x73).put(2, "b", "2").commit(2).commit(1).build(),
+                "OK state={\"b\"=\"2\"} committed=[2, 1] aborted=[] incomplete=[] validLength=100 tornTail=false"));
+
+        // H134 rollback_does_not_shrink_read_set
+        // Rules: R22, R23b, section 4 (read set)
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, BEGIN 2 @13, SAVEPOINT 1 s @22 (ends 32), READ 1 a absent
+        //      @32 (ends 44), ROLLBACK 1 s @44 (ends 54), PUT 2 a=2 @54 (ends 68), COMMIT 2 @68
+        //      (ends 77), COMMIT 1 @77 (ends 86). L = 86.
+        //   2. Phase 2: read set1 {a} after the READ; the ROLLBACK "does not change the read set".
+        //      COMMIT 2: committed, written {a}, state {a=2}.
+        //   3. COMMIT 1: txn 2 committed @68 after BEGIN 1 @4 and wrote a in read set1 ->
+        //      conflict -> aborted.
+        // Expected: OK state={"a"="2"} committed=[2] aborted=[1] incomplete=[] validLength=86 tornTail=false
+        c.add(TestCase.of("H134", "rollback_does_not_shrink_read_set", "R22,R23b",
+                LogBuilder.wal().begin(1).begin(2).savepoint(1, 0x73).readAbsent(1, "a").rollback(1, 0x73)
+                        .put(2, "a", "2").commit(2).commit(1).build(),
+                "OK state={\"a\"=\"2\"} committed=[2] aborted=[1] incomplete=[] validLength=86 tornTail=false"));
+
+        // H135 delete_of_missing_key_still_conflicts
+        // Rules: R22, section 10 item 1
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, BEGIN 2 @13, READ 1 a absent @22 (ends 34), DELETE 2 a @34
+        //      (ends 45), COMMIT 2 @45 (ends 54), COMMIT 1 @54 (ends 63). L = 63.
+        //   2. Phase 2: COMMIT 2: committed; the DELETE of the missing key does nothing to the
+        //      state, but it is a write, so written keys {a}.
+        //   3. COMMIT 1: txn 2 committed after BEGIN 1 and wrote a in read set1 -> conflict ->
+        //      aborted.
+        // Expected: OK state={} committed=[2] aborted=[1] incomplete=[] validLength=63 tornTail=false
+        c.add(TestCase.of("H135", "delete_of_missing_key_still_conflicts", "R22",
+                LogBuilder.wal().begin(1).begin(2).readAbsent(1, "a").del(2, "a").commit(2).commit(1).build(),
+                "OK state={} committed=[2] aborted=[1] incomplete=[] validLength=63 tornTail=false"));
+
+        // H136 read_flag_two_is_malformed
+        // Rules: R13
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4. Record @13: type 09, N = 7, payload 00 00 00 01 01 61 02
+        //      (txn 1, k = 1, key a, f = 2), size 12, ends 25, correct checksum. COMMIT 1 @25
+        //      (ends 34). L = 34. Phase 1: all intact.
+        //   2. Phase 2: record @13: R13 N = 7 >= 6; k = 1; 7 >= 6+1; f = payload byte 6 = 2, "any
+        //      other value" -> throw MALFORMED_PAYLOAD at 13.
+        // Expected: ERR MALFORMED_PAYLOAD@13
+        c.add(TestCase.of("H136", "read_flag_two_is_malformed", "R13",
+                LogBuilder.wal().begin(1).record(9, Hex.bytes("00 00 00 01 01 61 02")).commit(1).build(),
+                "ERR MALFORMED_PAYLOAD@13"));
+
+        // H137 read_value_length_not_matching_n_is_malformed
+        // Rules: R13
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4. Record @13: type 09, N = 10, payload 00 00 00 01 01 61 01
+        //      00 02 31 (f = 1, v = 2, one value byte), size 15, ends 28, correct checksum.
+        //      COMMIT 1 @28 (ends 37). L = 37. Phase 1: all intact.
+        //   2. Phase 2: record @13: R13 N = 10 >= 6; k = 1; 10 >= 7; f = 1; 10 >= 8+1; v = u16 at
+        //      payload byte 7 = 2; N = 8+1+2 = 11 != 10 -> throw MALFORMED_PAYLOAD at 13.
+        // Expected: ERR MALFORMED_PAYLOAD@13
+        c.add(TestCase.of("H137", "read_value_length_not_matching_n_is_malformed", "R13",
+                LogBuilder.wal().begin(1).record(9, Hex.bytes("00 00 00 01 01 61 01 00 02 31")).commit(1).build(),
+                "ERR MALFORMED_PAYLOAD@13"));
+
+        // H138 prec_read_txn_not_open_before_read_mismatch
+        // Rules: P4, R19, R19d
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, READ 7 a = "x" @13 (ends 28), COMMIT 1 @28 (ends 37). L = 37.
+        //   2. Phase 2: READ @13: R13 10 = 8+1+1; R14 txn 7; R15 key a; R16 value 78; R19 txn 7
+        //      never had a BEGIN -> throw TXN_NOT_OPEN at 13. (A READ that only checked the view
+        //      would see no own write and fail R19d instead.) P4: "For a READ record, TXN_NOT_OPEN (R19) comes before
+        //      READ_MISMATCH (R19d)."
+        // Expected: ERR TXN_NOT_OPEN@13
+        c.add(TestCase.of("H138", "prec_read_txn_not_open_before_read_mismatch", "P4,R19,R19d",
+                LogBuilder.wal().begin(1).read(7, "a", "x").commit(1).build(),
+                "ERR TXN_NOT_OPEN@13"));
+
+        // H139 read_value_byte_7f_is_bad_value
+        // Rules: R16
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, READ 1 a = byte 7F @13 (ends 28), COMMIT 1 @28. L = 37.
+        //   2. Phase 2: READ @13: R13 10 = 8+1+1; R14 txn 1; R15 key 61; R16 "(PUT, and READ when
+        //      f = 1)": value byte 7F > VALUE_BYTE_MAX 7E -> throw BAD_VALUE at 13.
+        // Expected: ERR BAD_VALUE@13
+        c.add(TestCase.of("H139", "read_value_byte_7f_is_bad_value", "R16",
+                LogBuilder.wal().begin(1).read(1, "a", "\u007f").commit(1).build(),
+                "ERR BAD_VALUE@13"));
+
+        // H140 read_key_with_space_is_bad_key
+        // Rules: R15
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, READ 1 "a b" absent @13 (N = 6+3 = 9, ends 27), COMMIT 1
+        //      @27 (ends 36). L = 36.
+        //   2. Phase 2: READ @13: R13 9 >= 6, k = 3, 9 >= 9, f = 0, 9 = 6+3; R14 txn 1; R15 key
+        //      byte 20 < KEY_BYTE_MIN 21 -> throw BAD_KEY at 13.
+        // Expected: ERR BAD_KEY@13
+        c.add(TestCase.of("H140", "read_key_with_space_is_bad_key", "R15",
+                LogBuilder.wal().begin(1).readAbsent(1, "a b").commit(1).build(),
+                "ERR BAD_KEY@13"));
+
+        // H141 wrong_read_in_torn_tail_is_ignored
+        // Rules: P5, R10, R12
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, PUT 1 a=1 @13, COMMIT 1 @27, BEGIN 2 @36 (ends 45), READ 2
+        //      a = "9" @45 (ends 60 = L) with corruptLastChecksum. L = 60.
+        //   2. Phase 1: p = 45: R7 type 9; R8 N = 10; R9 60 <= 60; R10 checksum wrong and the
+        //      record ends at L -> torn tail at 45: validLength 45, tornTail true.
+        //   3. Phase 2: txn 1 commits a=1; txn 2 stays open. The READ (view present "1", expects
+        //      "9") is in the torn tail and never checked (P5).
+        // Expected: OK state={"a"="1"} committed=[1] aborted=[] incomplete=[2] validLength=45 tornTail=true
+        c.add(TestCase.of("H141", "wrong_read_in_torn_tail_is_ignored", "P5,R10,R12",
+                LogBuilder.wal().begin(1).put(1, "a", "1").commit(1).begin(2).read(2, "a", "9").corruptLastChecksum().build(),
+                "OK state={\"a\"=\"1\"} committed=[1] aborted=[] incomplete=[2] validLength=45 tornTail=true"));
+
+        // =====================================================================================
+        // Group O: L6 RANGE counts and phantom conflicts (type 10, section 4 key order, R13,
+        // R15, R19, R19e, R22, R23e).
+        // =====================================================================================
+
+        // H142 range_counts_snapshot_with_own_writes
+        // Rules: R19e, R19d, R22
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, PUT 1 a=1 @13, PUT 1 b=1 @27, PUT 1 c=1 @41, COMMIT 1 @55
+        //      (ends 64), BEGIN 2 @64, DELETE 2 b @73 (ends 84), PUT 2 d=1 @84 (ends 98), RANGE 2
+        //      [a, c] 2 @98 (ends 115), RANGE 2 [a, d] 3 @115 (ends 132), COMMIT 2 @132 (ends
+        //      141). L = 141. All intact.
+        //   2. Phase 2: state {a, b, c}; BEGIN 2: snapshot {a, b, c}. Views for txn 2: a present
+        //      (snapshot), b absent (own DELETE), c present, d present (own PUT).
+        //      RANGE [a, c]: keys a <= K <= c present: a, c -> 2 = count. RANGE [a, d]: a, c, d
+        //      -> 3 = count.
+        //   3. COMMIT 2: nothing committed after BEGIN 2 -> no conflict; del b, put d -> state
+        //      {a=1, c=1, d=1}.
+        // Expected: OK state={"a"="1", "c"="1", "d"="1"} committed=[1, 2] aborted=[] incomplete=[] validLength=141 tornTail=false
+        c.add(TestCase.of("H142", "range_counts_snapshot_with_own_writes", "R19d,R19e,R22",
+                LogBuilder.wal().begin(1).put(1, "a", "1").put(1, "b", "1").put(1, "c", "1").commit(1)
+                        .begin(2).del(2, "b").put(2, "d", "1").range(2, "a", "c", 2).range(2, "a", "d", 3).commit(2).build(),
+                "OK state={\"a\"=\"1\", \"c\"=\"1\", \"d\"=\"1\"} committed=[1, 2] aborted=[] incomplete=[] validLength=141 tornTail=false"));
+
+        // H143 range_ignores_commit_after_begin
+        // Rules: R19e, R20, R23
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, BEGIN 2 @13, PUT 2 a=1 @22, COMMIT 2 @36 (ends 45), RANGE 1
+        //      [!, ~] 0 @45 (ends 62), ABORT 1 @62 (ends 71). L = 71.
+        //   2. Phase 2: state {a=1} after COMMIT 2; txn 1's snapshot is {} -> no key present in
+        //      its view -> n = 0 = count. ABORT 1 -> aborted [1].
+        // Expected: OK state={"a"="1"} committed=[2] aborted=[1] incomplete=[] validLength=71 tornTail=false
+        c.add(TestCase.of("H143", "range_ignores_commit_after_begin", "R19e,R20,R23",
+                LogBuilder.wal().begin(1).begin(2).put(2, "a", "1").commit(2).range(1, "!", "~", 0).abort(1).build(),
+                "OK state={\"a\"=\"1\"} committed=[2] aborted=[1] incomplete=[] validLength=71 tornTail=false"));
+
+        // H144 range_counting_current_state_is_mismatch
+        // Rules: R19e, R20
+        // Derivation:
+        //   1. As H143 but RANGE 1 [!, ~] count 1 @45 (ends 62), ABORT 1 @62. L = 71.
+        //   2. Phase 2: txn 1's view has no present key (snapshot {}), n = 0 != 1 -> throw
+        //      RANGE_MISMATCH at 45.
+        // Expected: ERR RANGE_MISMATCH@45
+        c.add(TestCase.of("H144", "range_counting_current_state_is_mismatch", "R19e,R20",
+                LogBuilder.wal().begin(1).begin(2).put(2, "a", "1").commit(2).range(1, "!", "~", 1).abort(1).build(),
+                "ERR RANGE_MISMATCH@45"));
+
+        // H145 range_lo_above_hi_counts_zero
+        // Rules: R19e, section 10 item 21
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, PUT 1 b=1 @13, COMMIT 1 @27, BEGIN 2 @36, RANGE 2 [c, a] 0
+        //      @45 (ends 62), COMMIT 2 @62 (ends 71). L = 71.
+        //   2. Phase 2: lo c > hi a -> "no key is in the range and n = 0" = count. COMMIT 2: no
+        //      conflict.
+        // Expected: OK state={"b"="1"} committed=[1, 2] aborted=[] incomplete=[] validLength=71 tornTail=false
+        c.add(TestCase.of("H145", "range_lo_above_hi_counts_zero", "R19e",
+                LogBuilder.wal().begin(1).put(1, "b", "1").commit(1).begin(2).range(2, "c", "a", 0).commit(2).build(),
+                "OK state={\"b\"=\"1\"} committed=[1, 2] aborted=[] incomplete=[] validLength=71 tornTail=false"));
+
+        // H146 range_lo_above_hi_nonzero_count_is_mismatch
+        // Rules: R19e
+        // Derivation:
+        //   1. As H145 but RANGE 2 [c, a] count 1 @45. L = 71.
+        //   2. Phase 2: lo > hi -> n = 0 != 1 -> throw RANGE_MISMATCH at 45. (Swapping the ends to
+        //      [a, c] would count b and accept the record.)
+        // Expected: ERR RANGE_MISMATCH@45
+        c.add(TestCase.of("H146", "range_lo_above_hi_nonzero_count_is_mismatch", "R19e",
+                LogBuilder.wal().begin(1).put(1, "b", "1").commit(1).begin(2).range(2, "c", "a", 1).commit(2).build(),
+                "ERR RANGE_MISMATCH@45"));
+
+        // H147 range_key_order_prefix_and_inclusive_ends
+        // Rules: R19e, section 4 (key order)
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, PUT 1 a=1 @13 (ends 27), PUT 1 ab=1 @27 (N = 7+2+1 = 10,
+        //      ends 42), PUT 1 b=1 @42 (ends 56), COMMIT 1 @56 (ends 65), BEGIN 2 @65 (ends 74),
+        //      RANGE 2 [a, a] 1 @74 (ends 91), RANGE 2 [ab, b] 2 @91 (N = 10+2+1 = 13, ends 109),
+        //      RANGE 2 [aa, az] 1 @109 (N = 14, ends 128), COMMIT 2 @128 (ends 137). L = 137.
+        //   2. Phase 2: snapshot of txn 2 = {a, ab, b}. Key order: a < aa < ab < az < b ("If one
+        //      key is a prefix of the other, the shorter key is smaller").
+        //      [a, a]: only a (ab > a) -> 1. [ab, b]: ab and b (a < ab), both ends included -> 2.
+        //      [aa, az]: ab only (a < aa, b > az) -> 1. All match.
+        //   3. COMMIT 2: no conflict, no writes.
+        // Expected: OK state={"a"="1", "ab"="1", "b"="1"} committed=[1, 2] aborted=[] incomplete=[] validLength=137 tornTail=false
+        c.add(TestCase.of("H147", "range_key_order_prefix_and_inclusive_ends", "R19e",
+                LogBuilder.wal().begin(1).put(1, "a", "1").put(1, "ab", "1").put(1, "b", "1").commit(1).begin(2)
+                        .range(2, "a", "a", 1).range(2, "ab", "b", 2).range(2, "aa", "az", 1).commit(2).build(),
+                "OK state={\"a\"=\"1\", \"ab\"=\"1\", \"b\"=\"1\"} committed=[1, 2] aborted=[] incomplete=[] validLength=137 tornTail=false"));
+
+        // H148 phantom_key_inside_range_conflicts
+        // Rules: R22, R23e
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, BEGIN 2 @13, RANGE 1 [a, c] 0 @22 (ends 39), PUT 2 b=1 @39
+        //      (ends 53), COMMIT 2 @53 (ends 62), COMMIT 1 @62 (ends 71). L = 71.
+        //   2. Phase 2: RANGE: snapshot {} -> 0, match; read ranges1 [(a, c)]. COMMIT 2:
+        //      committed, written {b}.
+        //   3. COMMIT 1: txn 2 committed @53 after BEGIN 1 and wrote b with a <= b <= c, inside a
+        //      read range -> conflict -> aborted.
+        // Expected: OK state={"b"="1"} committed=[2] aborted=[1] incomplete=[] validLength=71 tornTail=false
+        c.add(TestCase.of("H148", "phantom_key_inside_range_conflicts", "R22,R23e",
+                LogBuilder.wal().begin(1).begin(2).range(1, "a", "c", 0).put(2, "b", "1").commit(2).commit(1).build(),
+                "OK state={\"b\"=\"1\"} committed=[2] aborted=[1] incomplete=[] validLength=71 tornTail=false"));
+
+        // H149 key_outside_range_does_not_conflict
+        // Rules: R22
+        // Derivation:
+        //   1. As H148 but PUT 2 d=1 @39. L = 71.
+        //   2. COMMIT 1: txn 2 wrote {d}; d > c, so d is not in [a, c] -> no conflict ->
+        //      committed (no writes). committed [2, 1].
+        // Expected: OK state={"d"="1"} committed=[2, 1] aborted=[] incomplete=[] validLength=71 tornTail=false
+        c.add(TestCase.of("H149", "key_outside_range_does_not_conflict", "R22",
+                LogBuilder.wal().begin(1).begin(2).range(1, "a", "c", 0).put(2, "d", "1").commit(2).commit(1).build(),
+                "OK state={\"d\"=\"1\"} committed=[2, 1] aborted=[] incomplete=[] validLength=71 tornTail=false"));
+
+        // H150 empty_range_never_conflicts
+        // Rules: R22, R19e
+        // Derivation:
+        //   1. As H148 but RANGE 1 [c, a] 0 @22. L = 71.
+        //   2. RANGE: lo > hi -> n = 0, match. COMMIT 1: no key K has c <= K <= a, so txn 2's b
+        //      is not in a read range -> no conflict -> committed. committed [2, 1].
+        // Expected: OK state={"b"="1"} committed=[2, 1] aborted=[] incomplete=[] validLength=71 tornTail=false
+        c.add(TestCase.of("H150", "empty_range_never_conflicts", "R19e,R22",
+                LogBuilder.wal().begin(1).begin(2).range(1, "c", "a", 0).put(2, "b", "1").commit(2).commit(1).build(),
+                "OK state={\"b\"=\"1\"} committed=[2, 1] aborted=[] incomplete=[] validLength=71 tornTail=false"));
+
+        // H151 phantom_committed_before_range_record_still_conflicts
+        // Rules: R22, R19e
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, BEGIN 2 @13, PUT 2 b=1 @22 (ends 36), COMMIT 2 @36 (ends
+        //      45), RANGE 1 [a, c] 0 @45 (ends 62), COMMIT 1 @62 (ends 71). L = 71.
+        //   2. Phase 2: COMMIT 2: committed, written {b}. RANGE 1: snapshot {} (taken @4) -> 0,
+        //      match.
+        //   3. COMMIT 1: U = txn 2's COMMIT @36 "lies after T's BEGIN record and before T's
+        //      COMMIT record" and wrote b in the read range [a, c] -> conflict -> aborted. The
+        //      rule compares U's COMMIT with T's BEGIN, not with the RANGE record.
+        // Expected: OK state={"b"="1"} committed=[2] aborted=[1] incomplete=[] validLength=71 tornTail=false
+        c.add(TestCase.of("H151", "phantom_committed_before_range_record_still_conflicts", "R19e,R22",
+                LogBuilder.wal().begin(1).begin(2).put(2, "b", "1").commit(2).range(1, "a", "c", 0).commit(1).build(),
+                "OK state={\"b\"=\"1\"} committed=[2] aborted=[1] incomplete=[] validLength=71 tornTail=false"));
+
+        // H152 range_length_not_matching_n_is_malformed
+        // Rules: R13
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4. Record @13: type 0A, N = 11, payload 00 00 00 01 01 61 01 63
+        //      00 00 00 (count cut to 3 bytes), size 16, ends 29, correct checksum. COMMIT 1 @29
+        //      (ends 38). L = 38. Phase 1: all intact.
+        //   2. Phase 2: R13 RANGE: N = 11 >= 6; k1 = 1; 11 >= 7; k2 = payload byte 6 = 1; N =
+        //      10+1+1 = 12 != N = 11 -> throw MALFORMED_PAYLOAD at 13.
+        // Expected: ERR MALFORMED_PAYLOAD@13
+        c.add(TestCase.of("H152", "range_length_not_matching_n_is_malformed", "R13",
+                LogBuilder.wal().begin(1).record(10, Hex.bytes("00 00 00 01 01 61 01 63 00 00 00")).commit(1).build(),
+                "ERR MALFORMED_PAYLOAD@13"));
+
+        // H153 range_hi_with_space_is_bad_key
+        // Rules: R15
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, RANGE 1 lo "a" hi "c d" 0 @13 (N = 10+1+3 = 14, ends 32),
+        //      COMMIT 1 @32. L = 41.
+        //   2. Phase 2: R13 14 = 10+1+3; R14 txn 1; R15 lo a ok; hi byte 20 < 21 -> throw BAD_KEY
+        //      at 13 ("both lo (length k1) and hi (length k2) are keys").
+        // Expected: ERR BAD_KEY@13
+        c.add(TestCase.of("H153", "range_hi_with_space_is_bad_key", "R15",
+                LogBuilder.wal().begin(1).range(1, "a", "c d", 0).commit(1).build(),
+                "ERR BAD_KEY@13"));
+
+        // H154 range_empty_lo_is_bad_key_not_malformed
+        // Rules: R13, R15
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, RANGE 1 lo "" hi "c" 0 @13 (k1 = 0, N = 10+0+1 = 11, ends
+        //      29), COMMIT 1 @29. L = 38.
+        //   2. Phase 2: R13 11 >= 6; k1 = 0; 11 >= 6; k2 = payload byte 5 = 1; 11 = 10+0+1 ok.
+        //      R14 txn 1. R15 lo has k1 = 0 < MIN_KEY_LEN 1 -> throw BAD_KEY at 13.
+        // Expected: ERR BAD_KEY@13
+        c.add(TestCase.of("H154", "range_empty_lo_is_bad_key_not_malformed", "R13,R15",
+                LogBuilder.wal().begin(1).range(1, "", "c", 0).commit(1).build(),
+                "ERR BAD_KEY@13"));
+
+        // H155 prec_range_txn_not_open_before_range_mismatch
+        // Rules: P4, R19, R19e
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, RANGE 9 [a, c] 5 @13 (ends 30), COMMIT 1 @30. L = 39.
+        //   2. Phase 2: R13, R14, R15 ok; R19 txn 9 is not open -> throw TXN_NOT_OPEN at 13. P4:
+        //      "For a RANGE record, TXN_NOT_OPEN (R19) comes before RANGE_MISMATCH (R19e)."
+        // Expected: ERR TXN_NOT_OPEN@13
+        c.add(TestCase.of("H155", "prec_range_txn_not_open_before_range_mismatch", "P4,R19,R19e",
+                LogBuilder.wal().begin(1).range(9, "a", "c", 5).commit(1).build(),
+                "ERR TXN_NOT_OPEN@13"));
+
+        // H156 put_then_delete_same_key_view_absent
+        // Rules: R19d, R19e, R22
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, PUT 1 a=1 @13 (ends 27), DELETE 1 a @27 (ends 38), RANGE 1
+        //      [a, a] 0 @38 (ends 55), READ 1 a absent @55 (ends 67), COMMIT 1 @67 (ends 76). L = 76.
+        //   2. Phase 2: the last write of a in list1 is the DELETE -> view absent. RANGE [a, a]:
+        //      n = 0 = count. READ absent: match. COMMIT: no conflict; put a=1, then del a -> {}.
+        // Expected: OK state={} committed=[1] aborted=[] incomplete=[] validLength=76 tornTail=false
+        c.add(TestCase.of("H156", "put_then_delete_same_key_view_absent", "R19d,R19e,R22",
+                LogBuilder.wal().begin(1).put(1, "a", "1").del(1, "a").range(1, "a", "a", 0).readAbsent(1, "a").commit(1).build(),
+                "OK state={} committed=[1] aborted=[] incomplete=[] validLength=76 tornTail=false"));
+
+
+        // ---- Added from the v5 test audit (work/notes/test-audit-v5.md), each re-derived by hand ----
+
+        // H163 conflict_writer_began_before_reader
+        // Rules: R20, R19d, R22
+        // Derivation:
+        //   1. Header ok. BEGIN 2 @4 (ends 13), PUT 2 a=2 @13 (ends 27), BEGIN 1 @27 (ends 36), READ
+        //      1 a absent @36 (ends 48), COMMIT 2 @48 (ends 57), COMMIT 1 @57 (ends 66). L = 66. All
+        //      intact; p = 66 = L (R5).
+        //   2. Phase 2: BEGIN 2; PUT 2 -> list2 [a=2], state still {}. BEGIN 1: snapshot = state {}
+        //      (txn 2's write is not applied yet, R21). READ 1 a: no own write -> snapshot -> absent
+        //      = expected (f = 0). COMMIT 2: no READ/RANGE -> committed, state {a=2}.
+        //   3. COMMIT 1 @57: U = txn 2 was committed by R22, its COMMIT @48 "lies after T's BEGIN
+        //      record and before T's COMMIT record" (36 < 48 < 57), and its written keys {a} include
+        //      a in read set1 -> conflict -> aborted. U's BEGIN @4 lies before T's BEGIN; R22 does
+        //      not look at U's BEGIN.
+        // Expected: OK state={"a"="2"} committed=[2] aborted=[1] incomplete=[] validLength=66 tornTail=false
+        c.add(TestCase.of("H163", "conflict_writer_began_before_reader", "R19d,R20,R22",
+                LogBuilder.wal().begin(2).put(2, "a", "2").begin(1).readAbsent(1, "a").commit(2).commit(1).build(),
+                "OK state={\"a\"=\"2\"} committed=[2] aborted=[1] incomplete=[] validLength=66 tornTail=false"));
+
+        // H164 read_empty_value_is_present_not_absent
+        // Rules: R19d, section 10 item 2
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, PUT 1 a="" @13 (N = 7+1+0 = 8, ends 26), COMMIT 1 @26 (ends
+        //      35), BEGIN 2 @35 (ends 44), READ 2 a = "" @44 (f = 1, v = 0, N = 8+1+0 = 9, ends 58),
+        //      READ 2 a absent @58 (ends 70), COMMIT 2 @70 (ends 79). L = 79. All intact.
+        //   2. Phase 2: txn 1 commits a = "" -> state {a=""}. BEGIN 2: snapshot {a=""}.
+        //   3. READ @44: no own write -> snapshot: present "" ; expected present "" -> match ("the
+        //      empty value `""` is present").
+        //   4. READ @58: view present "", expected absent (f = 0) -> throw READ_MISMATCH at 58.
+        // Expected: ERR READ_MISMATCH@58
+        c.add(TestCase.of("H164", "read_empty_value_is_present_not_absent", "R19d",
+                LogBuilder.wal().begin(1).put(1, "a", "").commit(1).begin(2).read(2, "a", "").readAbsent(2, "a").commit(2).build(),
+                "ERR READ_MISMATCH@58"));
+
+        // H165 read_range_at_write_limit_last_write_counts_once
+        // Rules: R19a, R19d, R19e, R22, section 10 item 20
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4 (ends 13). PUT 1 a=1 @13, PUT 1 a=2 @27, DELETE 1 a @41 (ends
+        //      52), PUT 1 a=3 @52, PUT 1 b=1 @66, PUT 1 b=2 @80, PUT 1 c=1 @94 (ends 108), READ 1 a =
+        //      "3" @108 (ends 123), RANGE 1 [a, c] 3 @123 (ends 140), DELETE 1 c @140 (ends 151),
+        //      RANGE 1 [a, c] 2 @151 (ends 168), READ 1 c absent @168 (ends 180), COMMIT 1 @180
+        //      (ends 189). L = 189. All intact.
+        //   2. Phase 2: the 7 writes before @108 leave list1 with 7 writes. READ a: last write of a
+        //      is PUT a=3 -> present "3", match. RANGE [a, c]: present a, b, c -> 3; "each key
+        //      counts once, however many writes of it the write list holds" (a has 4, b 2) -> match.
+        //   3. DELETE c @140: R19a list holds 7 < 8 (READ and RANGE are not writes) -> ok; now 8.
+        //      RANGE [a, c] @151 with 8 writes (allowed): a, b present, c absent (own DELETE) -> 2,
+        //      match. READ c absent @168: match.
+        //   4. COMMIT 1: no other txn -> no conflict; apply the 8 writes in order -> a=3, b=2, c gone.
+        // Expected: OK state={"a"="3", "b"="2"} committed=[1] aborted=[] incomplete=[] validLength=189 tornTail=false
+        c.add(TestCase.of("H165", "read_range_at_write_limit_last_write_counts_once", "R19a,R19d,R19e,R22",
+                LogBuilder.wal().begin(1).put(1, "a", "1").put(1, "a", "2").del(1, "a").put(1, "a", "3").put(1, "b", "1")
+                        .put(1, "b", "2").put(1, "c", "1").read(1, "a", "3").range(1, "a", "c", 3).del(1, "c")
+                        .range(1, "a", "c", 2).readAbsent(1, "c").commit(1).build(),
+                "OK state={\"a\"=\"3\", \"b\"=\"2\"} committed=[1] aborted=[] incomplete=[] validLength=189 tornTail=false"));
+
+        // H166 own_written_key_does_not_conflict_for_reader
+        // Rules: R22
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, BEGIN 2 @13, READ 1 a absent @22 (ends 34), PUT 1 b=1 @34
+        //      (ends 48), PUT 2 b=2 @48 (ends 62), COMMIT 2 @62 (ends 71), COMMIT 1 @71 (ends 80).
+        //      L = 80. All intact.
+        //   2. Phase 2: READ 1 a: snapshot {} -> absent, match; read set1 {a}. COMMIT 2: no reads ->
+        //      committed, state {b=2}, written {b}.
+        //   3. COMMIT 1: txn 2 committed after BEGIN 1, but its written keys {b} hold no key of read
+        //      set1 {a} and txn 1 has no read ranges. b is in txn 1's own write list, and "Only T's
+        //      read set and read ranges count here, not T's own writes" -> no conflict -> committed,
+        //      b=1 replaces b=2. committed [2, 1].
+        // Expected: OK state={"b"="1"} committed=[2, 1] aborted=[] incomplete=[] validLength=80 tornTail=false
+        c.add(TestCase.of("H166", "own_written_key_does_not_conflict_for_reader", "R22",
+                LogBuilder.wal().begin(1).begin(2).readAbsent(1, "a").put(1, "b", "1").put(2, "b", "2").commit(2).commit(1).build(),
+                "OK state={\"b\"=\"1\"} committed=[2, 1] aborted=[] incomplete=[] validLength=80 tornTail=false"));
+
+        // H167 checkpoint_after_conflict_abort_omits_txn
+        // Rules: R22, R19c, R23c
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, BEGIN 2 @13, BEGIN 3 @22 (ends 31), RANGE 1 [a, c] 0 @31 (ends
+        //      48), PUT 2 b=1 @48 (ends 62), COMMIT 2 @62 (ends 71), COMMIT 1 @71 (ends 80),
+        //      CHECKPOINT c = 1: 3 @80 (N = 5, ends 90), COMMIT 3 @90 (ends 99). L = 99. All intact.
+        //   2. Phase 2: RANGE: snapshot {} -> 0, match. COMMIT 2: committed, state {b=1}. COMMIT 1:
+        //      txn 2 wrote b, a <= b <= c -> conflict -> aborted; "In both cases the transaction is
+        //      no longer open".
+        //   3. CHECKPOINT @80: open txns = {3} -> list [3] is right (R19c). COMMIT 3: no reads ->
+        //      committed, no writes.
+        // Expected: OK state={"b"="1"} committed=[2, 3] aborted=[1] incomplete=[] validLength=99 tornTail=false
+        c.add(TestCase.of("H167", "checkpoint_after_conflict_abort_omits_txn", "R19c,R22,R23c",
+                LogBuilder.wal().begin(1).begin(2).begin(3).range(1, "a", "c", 0).put(2, "b", "1").commit(2).commit(1)
+                        .checkpoint(3).commit(3).build(),
+                "OK state={\"b\"=\"1\"} committed=[2, 3] aborted=[1] incomplete=[] validLength=99 tornTail=false"));
+
+        // H168 rollback_does_not_drop_read_range
+        // Rules: R22, R23b, R23e, section 4 (read ranges)
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, BEGIN 2 @13, SAVEPOINT 1 s @22 (ends 32), RANGE 1 [a, c] 0 @32
+        //      (ends 49), ROLLBACK 1 s @49 (ends 59), PUT 2 b=1 @59 (ends 73), COMMIT 2 @73 (ends
+        //      82), COMMIT 1 @82 (ends 91). L = 91. All intact.
+        //   2. Phase 2: RANGE: snapshot {} -> 0, match; read ranges1 [(a, c)]. ROLLBACK: "a ROLLBACK
+        //      does not change the read ranges". COMMIT 2: committed, written {b}, state {b=1}.
+        //   3. COMMIT 1: txn 2 committed after BEGIN 1 and wrote b in [a, c] -> conflict -> aborted.
+        // Expected: OK state={"b"="1"} committed=[2] aborted=[1] incomplete=[] validLength=91 tornTail=false
+        c.add(TestCase.of("H168", "rollback_does_not_drop_read_range", "R22,R23b,R23e",
+                LogBuilder.wal().begin(1).begin(2).savepoint(1, 0x73).range(1, "a", "c", 0).rollback(1, 0x73)
+                        .put(2, "b", "1").commit(2).commit(1).build(),
+                "OK state={\"b\"=\"1\"} committed=[2] aborted=[1] incomplete=[] validLength=91 tornTail=false"));
+
+        // H169 read_txn_zero_is_bad_txn_id
+        // Rules: R14
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, READ 0 a absent @13 (N = 7, ends 25), COMMIT 1 @25 (ends 34).
+        //      L = 34. All intact.
+        //   2. Phase 2: READ @13: R13 7 >= 6, k = 1, 7 >= 7, f = 0, 7 = 6+1; R14 txn 0 -> throw
+        //      BAD_TXN_ID at 13.
+        // Expected: ERR BAD_TXN_ID@13
+        c.add(TestCase.of("H169", "read_txn_zero_is_bad_txn_id", "R14",
+                LogBuilder.wal().begin(1).readAbsent(0, "a").commit(1).build(),
+                "ERR BAD_TXN_ID@13"));
+
+        // H170 range_hi_of_33_bytes_is_bad_key
+        // Rules: R13, R15
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, RANGE 1 lo "a" hi = 33 bytes 62 count 0 @13 (N = 10+1+33 =
+        //      44, size 49, ends 62), COMMIT 1 @62 (ends 71). L = 71. All intact (N <= 1024).
+        //   2. Phase 2: R13 44 >= 6; k1 = 1; 44 >= 7; k2 = 33; 44 = 10+1+33 ok. R14 txn 1. R15 lo
+        //      ok; hi k2 = 33 > MAX_KEY_LEN 32 -> throw BAD_KEY at 13.
+        // Expected: ERR BAD_KEY@13
+        c.add(TestCase.of("H170", "range_hi_of_33_bytes_is_bad_key", "R13,R15",
+                LogBuilder.wal().begin(1).range(1, "a", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", 0).commit(1).build(),
+                "ERR BAD_KEY@13"));
+
+        // H171 read_absent_with_extra_byte_is_malformed
+        // Rules: R13
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4. Record @13: type 09, N = 8, payload 00 00 00 01 01 61 00 00
+        //      (f = 0 and one extra byte), size 13, ends 26, correct checksum. COMMIT 1 @26 (ends
+        //      35). L = 35. All intact.
+        //   2. Phase 2: R13 8 >= 6; k = 1; 8 >= 7; f = 0 -> N must be 6+1 = 7; 8 != 7 -> throw
+        //      MALFORMED_PAYLOAD at 13.
+        // Expected: ERR MALFORMED_PAYLOAD@13
+        c.add(TestCase.of("H171", "read_absent_with_extra_byte_is_malformed", "R13",
+                LogBuilder.wal().begin(1).record(9, Hex.bytes("00 00 00 01 01 61 00 00")).commit(1).build(),
+                "ERR MALFORMED_PAYLOAD@13"));
+
+        // H172 prec_read_mismatch_early_checksum_mismatch_later
+        // Rules: P2, R10, R19d
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, READ 1 a = "x" @13 (ends 28), PUT 1 b=1 @28 (ends 42) with
+        //      corruptLastChecksum, COMMIT 1 @42 (ends 51). L = 51.
+        //   2. Two problems: the READ @13 expects "x" but the view is absent (R19d, phase 2), and
+        //      the PUT @28 has a wrong checksum with bytes after it (R10, phase 1).
+        //   3. Phase 1: p = 4, 13 intact; p = 28: R7 type 2; R8 N = 9; R9 42 <= 51; R10 checksum
+        //      wrong and 42 < 51 -> throw CHECKSUM_MISMATCH at 28. Phase 2 never runs.
+        //   4. P2: "A phase-1 error anywhere in the log beats a phase-2 error anywhere in the log,
+        //      even when the phase-2 problem is in an earlier record." READ_MISMATCH is a phase-2
+        //      error.
+        // Expected: ERR CHECKSUM_MISMATCH@28
+        c.add(TestCase.of("H172", "prec_read_mismatch_early_checksum_mismatch_later", "P2,R10,R19d",
+                LogBuilder.wal().begin(1).read(1, "a", "x").put(1, "b", "1").corruptLastChecksum().commit(1).build(),
+                "ERR CHECKSUM_MISMATCH@28"));
+
+        // H173 range_count_65537_is_not_one
+        // Rules: R19e
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, PUT 1 a=1 @13, COMMIT 1 @27 (ends 36), BEGIN 2 @36 (ends 45),
+        //      RANGE 2 [a, a] count 65537 (bytes 00 01 00 01) @45 (ends 62), COMMIT 2 @62 (ends 71).
+        //      L = 71.
+        //   2. Phase 2: snapshot of txn 2 = {a=1}; n = 1 (only a). count is the u32 65537 != 1 ->
+        //      throw RANGE_MISMATCH at 45. (Reading count as 16 bits would give 1 and accept it.)
+        // Expected: ERR RANGE_MISMATCH@45
+        c.add(TestCase.of("H173", "range_count_65537_is_not_one", "R19e",
+                LogBuilder.wal().begin(1).put(1, "a", "1").commit(1).begin(2).range(2, "a", "a", 65537).commit(2).build(),
+                "ERR RANGE_MISMATCH@45"));
+
+        // =====================================================================================
+        // Group P: scale (PROMPT.md section 2: logs up to 16777216 bytes, 5 s per call, 512 MiB
+        // heap, and the stated shapes of the large tests). Each log is built by a loop in a
+        // helper below; every block of the loop is valid by the same argument, so the outcome
+        // follows by induction, and each log ends with a record that throws at an offset that
+        // is a sum of record sizes. These tests come last: a solution that times out on one keeps
+        // running in the background, and javatest.py re-runs every later test alone.
+        // Sizes: BEGIN/COMMIT 9; READ f=0 k=1 12; READ f=1 k=1 v=1 15; READ f=1 k=7 v=1 21;
+        // PUT k=1 v=1 14; PUT k=7 v=1 20; RANGE k1=k2=1 17; RANGE k1=k2=7 29.
+        // =====================================================================================
+
+        // H157 scale_many_reading_transactions
+        // Rules: R19d, R22, section 2
+        // Derivation:
+        //   1. For t = 1 .. 500000: BEGIN t, READ t "z" absent, COMMIT t: 9+12+9 = 30 bytes per
+        //      block, blocks from offset 4 to 4 + 500000*30 = 15000004. Then BEGIN 500001 @15000004
+        //      (ends 15000013), READ 500001 "z" = "x" @15000013 (ends 15000028). L = 15000028 <=
+        //      16777216. Phase 1: every record intact (correct checksums, N <= 10); p = L (R5).
+        //   2. Phase 2, block t: BEGIN t: id new (R17), no other txn open (R18); snapshot. READ:
+        //      no record anywhere writes z -> view absent = expected. COMMIT t: committed earlier
+        //      txns have no writes -> no conflict -> committed.
+        //   3. READ @15000013: view absent (no write of z), expected present "x" -> throw
+        //      READ_MISMATCH at 15000013.
+        // Expected: ERR READ_MISMATCH@15000013
+        c.add(TestCase.of("H157", "scale_many_reading_transactions", "R19d,R22",
+                scaleManyReaders(), "ERR READ_MISMATCH@15000013"));
+
+        // H158 scale_large_state_many_snapshots
+        // Rules: R19d, R20, section 2
+        // Derivation:
+        //   1. Base: for i = 0 .. 12499: txn 2+i: BEGIN, 8 PUTs of keys "k" + 6 digits (8i .. 8i+7)
+        //      = "v", COMMIT: 9 + 8*20 + 9 = 178 bytes; 12500*178 = 2225000 -> ends 2225004. Keys
+        //      k000000 .. k099999 (100000 keys, 8 writes per txn = MAX_WRITES, allowed).
+        //      Loop: for j = 0 .. 399999: txn 12502+j: BEGIN, READ "z" absent, COMMIT: 30 bytes;
+        //      12000000 -> ends 14225004. Then BEGIN 412502 @14225004 (ends 14225013) and READ
+        //      412502 "k000000" = "w" @14225013 (ends 14225034). L = 14225034.
+        //   2. Phase 2: the base txns commit (no reads); state = 100000 keys, all "v". Each loop
+        //      txn: READ z absent matches (no write of z); COMMIT: read set {z}, nobody wrote z ->
+        //      committed (no writes). State unchanged.
+        //   3. Last READ: txn 412502's snapshot has k000000 = "v"; expected "w" -> throw
+        //      READ_MISMATCH at 14225013.
+        // Expected: ERR READ_MISMATCH@14225013
+        c.add(TestCase.of("H158", "scale_large_state_many_snapshots", "R19d,R20",
+                scaleLargeState(), "ERR READ_MISMATCH@14225013"));
+
+        // H159 scale_long_reader_sees_old_version
+        // Rules: R19d, R20, section 2
+        // Derivation:
+        //   1. For t = 2 .. 175001: BEGIN t, PUT t a=x, COMMIT t (32 bytes): 5600000 -> ends
+        //      5600004. BEGIN 1 @5600004 (ends 5600013). For t = 175002 .. 350001: BEGIN t, PUT t
+        //      a=y, COMMIT t (32 bytes): 5600000 -> ends 11200013. Then 300000 READ 1 a = "x" (15
+        //      bytes): 4500000 -> ends 15700013. Then READ 1 a = "y" @15700013 (ends 15700028).
+        //      L = 15700028.
+        //   2. Phase 2: before BEGIN 1 the state is {a=x}; txn 1's snapshot {a=x}. Later txns (no
+        //      reads) commit a=y. Each READ 1 a = "x": no own write -> snapshot -> "x", match. At
+        //      most 2 txns open at a time.
+        //   3. Last READ expects "y", view "x" -> throw READ_MISMATCH at 15700013.
+        // Expected: ERR READ_MISMATCH@15700013
+        c.add(TestCase.of("H159", "scale_long_reader_sees_old_version", "R19d,R20",
+                scaleLongReader(), "ERR READ_MISMATCH@15700013"));
+
+        // H160 scale_range_counts_over_large_state
+        // Rules: R19e, section 2
+        // Derivation:
+        //   1. Base as H158 (txns 2 .. 12501, keys k000000 .. k099999), ends 2225004. BEGIN 1
+        //      @2225004 (ends 2225013). 300000 RANGE 1 [k000000, k999999] 100000 (29 bytes):
+        //      8700000 -> ends 10925013. Then RANGE 1 [k000000, k999999] 99999 @10925013 (ends
+        //      10925042). L = 10925042.
+        //   2. Phase 2: txn 1's snapshot holds the 100000 keys, all between k000000 and k999999
+        //      (same length, digit order) -> n = 100000 for each RANGE, match.
+        //   3. Last RANGE: n = 100000 != 99999 -> throw RANGE_MISMATCH at 10925013.
+        // Expected: ERR RANGE_MISMATCH@10925013
+        c.add(TestCase.of("H160", "scale_range_counts_over_large_state", "R19e",
+                scaleRangeLargeState(), "ERR RANGE_MISMATCH@10925013"));
+
+        // H161 scale_range_snapshot_while_keys_are_added
+        // Rules: R19e, R20, section 2
+        // Derivation:
+        //   1. Base: for i = 0 .. 6249: txn 2+i with 8 PUTs (keys k000000 .. k049999 = "v"): 6250
+        //      *178 = 1112500 -> ends 1112504. BEGIN 1 @1112504 (ends 1112513). For i = 0 ..
+        //      149999: txn 6252+i: BEGIN, PUT "k" + 6 digits (50000+i) = "w", COMMIT, then RANGE
+        //      1 [k000000, k999999] 50000: 9+20+9+29 = 67 bytes; 10050000 -> ends 11162513. Then
+        //      RANGE 1 [k000000, k999999] 200000 @11162513 (ends 11162542). L = 11162542.
+        //   2. Phase 2: txn 1's snapshot = the 50000 base keys. Each loop txn (no reads) commits
+        //      one new key into the range; txn 1 has no writes, so its view stays the snapshot ->
+        //      n = 50000, match. (The state grows to 200000 keys.)
+        //   3. Last RANGE expects 200000 (the current state's count) but n = 50000 -> throw
+        //      RANGE_MISMATCH at 11162513.
+        // Expected: ERR RANGE_MISMATCH@11162513
+        c.add(TestCase.of("H161", "scale_range_snapshot_while_keys_are_added", "R19e,R20",
+                scaleRangeGrowing(), "ERR RANGE_MISMATCH@11162513"));
+
+        // H162 scale_commit_with_many_read_ranges
+        // Rules: R22, R19, section 2
+        // Derivation:
+        //   1. BEGIN 1 @4 (ends 13). 200000 RANGE 1 [a, a] 0 (17 bytes): 3400000 -> ends 3400013.
+        //      For t = 2 .. 250001: BEGIN t, PUT t "b" + 6 digits (t) = "x", COMMIT t (9+20+9 = 38):
+        //      9500000 -> ends 12900013. COMMIT 1 @12900013 (ends 12900022). READ 1 "a" absent
+        //      @12900022 (ends 12900034). L = 12900034.
+        //   2. Phase 2: each RANGE: snapshot {} -> 0, match. Loop txns commit (no reads).
+        //   3. COMMIT 1: 250000 txns committed after BEGIN 1, each wrote one key b......; none is
+        //      in [a, a] (only a itself is), read set empty -> no conflict -> committed.
+        //   4. READ 1 @12900022: txn 1 is committed, not open -> throw TXN_NOT_OPEN at 12900022.
+        // Expected: ERR TXN_NOT_OPEN@12900022
+        c.add(TestCase.of("H162", "scale_commit_with_many_read_ranges", "R19,R22",
+                scaleManyRanges(), "ERR TXN_NOT_OPEN@12900022"));
+
         return c;
+    }
+
+    // ---- input builders for group P (encode only; no outcome is computed) ----
+
+    private static String key7(char p, int n) { return p + String.format("%06d", n); }
+
+    private static LogBuilder base8(LogBuilder b, int keys, long firstTxn) {
+        long t = firstTxn;
+        for (int i = 0; i < keys; i += 8) {
+            b.begin(t);
+            for (int j = i; j < i + 8; j++) b.put(t, key7('k', j), "v");
+            b.commit(t);
+            t++;
+        }
+        return b;
+    }
+
+    private static byte[] scaleManyReaders() {
+        LogBuilder b = LogBuilder.wal();
+        for (long t = 1; t <= 500000; t++) b.begin(t).readAbsent(t, "z").commit(t);
+        return b.begin(500001).read(500001, "z", "x").build();
+    }
+
+    private static byte[] scaleLargeState() {
+        LogBuilder b = base8(LogBuilder.wal(), 100000, 2);
+        for (long t = 12502; t < 12502 + 400000; t++) b.begin(t).readAbsent(t, "z").commit(t);
+        return b.begin(412502).read(412502, "k000000", "w").build();
+    }
+
+    private static byte[] scaleLongReader() {
+        LogBuilder b = LogBuilder.wal();
+        for (long t = 2; t <= 175001; t++) b.begin(t).put(t, "a", "x").commit(t);
+        b.begin(1);
+        for (long t = 175002; t <= 350001; t++) b.begin(t).put(t, "a", "y").commit(t);
+        for (int i = 0; i < 300000; i++) b.read(1, "a", "x");
+        return b.read(1, "a", "y").build();
+    }
+
+    private static byte[] scaleRangeLargeState() {
+        LogBuilder b = base8(LogBuilder.wal(), 100000, 2).begin(1);
+        for (int i = 0; i < 300000; i++) b.range(1, "k000000", "k999999", 100000);
+        return b.range(1, "k000000", "k999999", 99999).build();
+    }
+
+    private static byte[] scaleRangeGrowing() {
+        LogBuilder b = base8(LogBuilder.wal(), 50000, 2).begin(1);
+        for (int i = 0; i < 150000; i++) {
+            long t = 6252 + i;
+            b.begin(t).put(t, key7('k', 50000 + i), "w").commit(t).range(1, "k000000", "k999999", 50000);
+        }
+        return b.range(1, "k000000", "k999999", 200000).build();
+    }
+
+    private static byte[] scaleManyRanges() {
+        LogBuilder b = LogBuilder.wal().begin(1);
+        for (int i = 0; i < 200000; i++) b.range(1, "a", "a", 0);
+        for (long t = 2; t <= 250001; t++) b.begin(t).put(t, key7('b', (int) t), "x").commit(t);
+        return b.commit(1).readAbsent(1, "a").build();
     }
 }

@@ -5,8 +5,10 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Usage: java TestMain public|hidden      runs the tests, one @@TEST line each
- *        java TestMain list public|hidden lists the tests (@@CASE lines), runs nothing
+ * Usage: java TestMain public|hidden          runs the tests, one @@TEST line each
+ *        java TestMain public|hidden only ID  runs only the test ID (used by javatest.py to
+ *                                             re-run tests after a TIMEOUT in a fresh JVM)
+ *        java TestMain list public|hidden     lists the tests (@@CASE lines), runs nothing
  */
 public final class TestMain {
     private static final long LIMIT_MS = 5000;
@@ -20,7 +22,8 @@ public final class TestMain {
 
     public static void main(String[] args) {
         boolean list = args.length == 2 && args[0].equals("list");
-        String suite = list ? args[1] : (args.length == 1 ? args[0] : "");
+        String only = args.length == 3 && args[1].equals("only") ? args[2] : null;
+        String suite = list ? args[1] : (args.length == 1 || only != null ? args[0] : "");
         List<TestCase> cases;
         if (suite.equals("public")) cases = PublicTests.cases();
         else if (suite.equals("hidden")) cases = HiddenTests.cases();
@@ -37,6 +40,7 @@ public final class TestMain {
         System.setErr(sink);
 
         for (TestCase tc : cases) {
+            if (only != null && !tc.id.equals(only)) continue;
             if (list) {
                 out.print("@@CASE\t" + esc(tc.id) + "\t" + esc(tc.name) + "\t" + esc(tc.rules)
                         + "\t" + esc(tc.expected) + "\n");
