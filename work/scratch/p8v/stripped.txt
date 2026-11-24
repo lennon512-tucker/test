@@ -1,0 +1,158 @@
+==== tests/public/PublicTests.java : non-test code ====
+import java.util.ArrayList;
+import java.util.List;
+public final class PublicTests {
+    private PublicTests() {}
+    public static List<TestCase> cases() {
+        List<TestCase> c = new ArrayList<>();
+        c.add(<TEST P01>);
+        c.add(<TEST P02>);
+        c.add(<TEST P03>);
+        c.add(<TEST P04>);
+        return c;
+    }
+}
+==== tests/public/PublicTests.java : tests ====
+P04: Hex.bytes( "57 41 4C 31" + " 01 00 04 00 00 00 01 1C 06" + " 02 00 09 00 00 00 01 01 61 00 01 31 36 A0" + " 06 00 05 00 00 00 01 73 C3 7F" + " 02 00 09 00 00 00 01 01 62 00 01 32 3B A2" + " 03 00 06 00 00 00 01 01 61 AB 6C" + " 07 00 05 00 00 00 01 73 CB 80" + " 02 00 09 00 00 00 01 01 63 00 01 33 40 A4" + " 04 00 04 00 00 00 01 31 09")
+==== tests/hidden/HiddenTests.java : non-test code ====
+import java.util.ArrayList;
+import java.util.List;
+public final class HiddenTests {
+    private HiddenTests() {}
+    public static List<TestCase> cases() {
+        List<TestCase> c = new ArrayList<>();
+        c.add(<TEST H01>);
+        c.add(<TEST H02>);
+        c.add(<TEST H03>);
+        c.add(<TEST H04>);
+        c.add(<TEST H05>);
+        c.add(<TEST H06>);
+        c.add(<TEST H07>);
+        c.add(<TEST H08>);
+        c.add(<TEST H09>);
+        c.add(<TEST H10>);
+        c.add(<TEST H11>);
+        c.add(<TEST H12>);
+        c.add(<TEST H13>);
+        c.add(<TEST H14>);
+        c.add(<TEST H15>);
+        c.add(<TEST H16>);
+        c.add(<TEST H17>);
+        c.add(<TEST H18>);
+        c.add(<TEST H19>);
+        c.add(<TEST H20>);
+        c.add(<TEST H21>);
+        c.add(<TEST H22>);
+        c.add(<TEST H23>);
+        c.add(<TEST H24>);
+        c.add(<TEST H25>);
+        c.add(<TEST H26>);
+        c.add(<TEST H27>);
+        c.add(<TEST H28>);
+        c.add(<TEST H29>);
+        c.add(<TEST H30>);
+        c.add(<TEST H31>);
+        c.add(<TEST H32>);
+        c.add(<TEST H33>);
+        c.add(<TEST H34>);
+        c.add(<TEST H35>);
+        c.add(<TEST H36>);
+        c.add(<TEST H37>);
+        c.add(<TEST H38>);
+        c.add(<TEST H39>);
+        c.add(<TEST H40>);
+        c.add(<TEST H41>);
+        c.add(<TEST H42>);
+        c.add(<TEST H43>);
+        c.add(<TEST H44>);
+        c.add(<TEST H45>);
+        c.add(<TEST H46>);
+        c.add(<TEST H47>);
+        c.add(<TEST H48>);
+        c.add(<TEST H49>);
+        c.add(<TEST H50>);
+        c.add(<TEST H51>);
+        c.add(<TEST H52>);
+        c.add(<TEST H53>);
+        c.add(<TEST H54>);
+        c.add(<TEST H55>);
+        c.add(<TEST H56>);
+        c.add(<TEST H57>);
+        c.add(<TEST H58>);
+        c.add(<TEST H59>);
+        c.add(<TEST H60>);
+        c.add(<TEST H61>);
+        c.add(<TEST H62>);
+        c.add(<TEST H63>);
+        c.add(<TEST H64>);
+        c.add(<TEST H65>);
+        c.add(<TEST H66>);
+        c.add(<TEST H67>);
+        c.add(<TEST H68>);
+        c.add(<TEST H69>);
+        c.add(<TEST H70>);
+        c.add(<TEST H71>);
+        c.add(<TEST H72>);
+        c.add(<TEST H73>);
+        c.add(<TEST H74>);
+        c.add(<TEST H75>);
+        c.add(<TEST H76>);
+        c.add(<TEST H77>);
+        c.add(<TEST H78>);
+        c.add(<TEST H79>);
+        c.add(<TEST H80>);
+        c.add(<TEST H81>);
+        c.add(<TEST H82>);
+        c.add(<TEST H83>);
+        c.add(<TEST H84>);
+        c.add(<TEST H85>);
+        c.add(<TEST H86>);
+        c.add(<TEST H87>);
+        c.add(<TEST H88>);
+        c.add(<TEST H89>);
+        c.add(<TEST H90>);
+        c.add(<TEST H91>);
+        c.add(<TEST H92>);
+        c.add(<TEST H93>);
+        c.add(<TEST H94>);
+        c.add(<TEST H95>);
+        c.add(<TEST H96>);
+        c.add(<TEST H97>);
+        c.add(<TEST H98>);
+        c.add(<TEST H99>);
+        return c;
+    }
+}
+==== tests/hidden/HiddenTests.java : tests ====
+H11: LogBuilder.wal().record(8, Hex.bytes("00 00 00 01")).begin(1).build()
+H20: LogBuilder.wal().begin(1).frame(8, 4, Hex.bytes("00 00 00 01"), 0x0000).build()
+H70: LogBuilder.wal().begin(1).begin(2).put(2, "z", "0") .put(1, "a", "1").put(1, "b", "2").put(1, "c", "3").put(1, "d", "4") .put(1, "e", "5").put(1, "f", "6").put(1, "g", "7").del(1, "a") .commit(1).commit(2).build()
+H71: LogBuilder.wal().begin(1).put(1, "a", "1").put(1, "a", "2").put(1, "a", "3") .put(1, "a", "4").put(1, "a", "5").put(1, "a", "6").put(1, "a", "7") .put(1, "a", "8").put(1, "a", "9").commit(1).build()
+H72: LogBuilder.wal().begin(1).put(1, "a", "1").del(1, "b").put(1, "c", "3").del(1, "d") .put(1, "e", "5").del(1, "f").put(1, "g", "7").del(1, "h").del(1, "a") .commit(1).build()
+H73: LogBuilder.wal().begin(1).put(1, "a", "1").put(1, "b", "2").put(1, "c", "3") .put(1, "d", "4").put(1, "e", "5").put(1, "f", "6").savepoint(1, 0x73) .put(1, "g", "7").put(1, "h", "8").rollback(1, 0x73) .put(1, "i", "9").put(1, "j", "0").commit(1).build()
+H74: LogBuilder.wal().begin(1).put(1, "a", "1").put(1, "b", "2").put(1, "c", "3") .put(1, "d", "4").put(1, "e", "5").put(1, "f", "6").savepoint(1, 0x73) .put(1, "g", "7").put(1, "h", "8").rollback(1, 0x73) .put(1, "i", "9").put(1, "j", "0").put(1, "k", "1").commit(1).build()
+H75: LogBuilder.wal().begin(1).put(1, "a", "1").put(1, "b", "2").put(1, "c", "3") .put(1, "d", "4").put(1, "e", "5").put(1, "f", "6").put(1, "g", "7") .put(1, "h", "8").savepoint(1, 0x78).rollback(1, 0x78).commit(1).build()
+H76: LogBuilder.wal().begin(1).put(1, "a", "1").put(1, "b", "2").put(1, "c", "3") .put(1, "d", "4").put(1, "e", "5").put(1, "f", "6").put(1, "g", "7") .put(1, "h", "8").put(1, "i", "\u007F").commit(1).build()
+H77: LogBuilder.wal().begin(1).put(1, "a", "1").put(1, "b", "2").put(1, "c", "3") .put(1, "d", "4").put(1, "e", "5").put(1, "f", "6").put(1, "g", "7") .put(1, "h", "8").commit(1).put(1, "i", "9").build()
+H78: LogBuilder.wal().begin(1).record(6, Hex.bytes("00 00 00 01")).commit(1).build()
+H79: LogBuilder.wal().begin(1).record(6, Hex.bytes("00 00 00 01 20 73")).commit(1).build()
+H80: LogBuilder.wal().begin(1).savepoint(1, 0x73).record(7, Hex.bytes("00 00 00 01 73 73")) .commit(1).build()
+H81: LogBuilder.wal().begin(1).savepoint(1, 0x73).record(7, Hex.bytes("00 00 00 01")) .commit(1).build()
+H82: LogBuilder.wal().begin(1).put(1, "a", "1").savepoint(1, 0x20).commit(1).build()
+H83: LogBuilder.wal().begin(1).savepoint(1, 0x73).rollback(1, 0x7F).commit(1).build()
+H84: LogBuilder.wal().begin(1).savepoint(1, 0x21).put(1, "a", "1").savepoint(1, 0x7E) .put(1, "b", "2").rollback(1, 0x7E).put(1, "c", "3").commit(1).build()
+H85: LogBuilder.wal().begin(1).savepoint(1, 0x73).rollback(0, 0x20).commit(1).build()
+H86: LogBuilder.wal().begin(1).savepoint(2, 0x7F).commit(1).build()
+H87: LogBuilder.wal().begin(1).put(1, "a", "1").savepoint(2, 0x73).commit(1).build()
+H88: LogBuilder.wal().begin(1).put(1, "a", "1").savepoint(1, 0x73).commit(1) .rollback(1, 0x73).build()
+H89: LogBuilder.wal().begin(1).begin(2).savepoint(1, 0x73).put(2, "a", "1") .rollback(2, 0x73).commit(1).commit(2).build()
+H90: LogBuilder.wal().begin(1).begin(2).put(1, "a", "1").savepoint(1, 0x73) .savepoint(2, 0x73).put(1, "b", "2").put(2, "c", "3").rollback(2, 0x73) .rollback(1, 0x73).commit(1).commit(2).build()
+H91: LogBuilder.wal().begin(1).savepoint(1, 0x73).put(1, "a", "1").savepoint(1, 0x74) .put(1, "b", "2").savepoint(1, 0x73).put(1, "c", "3").rollback(1, 0x73) .rollback(1, 0x74).put(1, "d", "4").commit(1).build()
+H92: LogBuilder.wal().begin(1).savepoint(1, 0x73).put(1, "a", "1").savepoint(1, 0x74) .put(1, "b", "2").savepoint(1, 0x73).rollback(1, 0x74).rollback(1, 0x73) .commit(1).build()
+H93: LogBuilder.wal().begin(1).put(1, "a", "1").savepoint(1, 0x78).savepoint(1, 0x79) .put(1, "b", "2").rollback(1, 0x79).rollback(1, 0x78).rollback(1, 0x79) .commit(1).build()
+H94: LogBuilder.wal().begin(1).put(1, "a", "1").savepoint(1, 0x73).put(1, "b", "2") .rollback(1, 0x73).put(1, "c", "3").rollback(1, 0x73).put(1, "d", "4") .commit(1).build()
+H95: LogBuilder.wal().begin(2).put(2, "b", "2").commit(2).begin(1).savepoint(1, 0x7A) .put(1, "a", "1").del(1, "b").rollback(1, 0x7A).commit(1).build()
+H96: LogBuilder.wal().begin(1).put(1, "a", "1").put(1, "b", "2").savepoint(1, 0x73) .put(1, "a", "3").del(1, "b").put(1, "c", "4").rollback(1, 0x73) .put(1, "b", "5").commit(1).build()
+H97: LogBuilder.wal().begin(1).put(1, "a", "1").savepoint(1, 0x73).put(1, "b", "2") .rollback(1, 0x73).put(1, "c", "3").abort(1).build()
+H98: LogBuilder.wal().begin(1).put(1, "a", "1").savepoint(1, 0x73).put(1, "a", "2") .rollback(1, 0x73).begin(2).put(2, "b", "1").commit(2).rollback(1, 0x71) .corruptLastChecksum().build()
+H99: LogBuilder.wal().begin(1).rollback(1, 0x73).put(1, "a", "1").corruptLastChecksum() .commit(1).build()

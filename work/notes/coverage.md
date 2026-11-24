@@ -4,9 +4,9 @@ Rule numbers are those of task/PROMPT.md (DRAFT v3, audited): R1-R27 with the v3
 Traps T1-T17 are PLAN.md section 4.6; T18-T26 are work/notes/spec-change-v3.md section 5 (levers L1 and L2).
 "Main" means the test was built to check that rule; "also" means the rule is exercised on the way (for example, R13 on a well-formed record) but is not what the test is about.
 
-Status: P5 wrote groups A-C (H01-H24). P6 wrote groups D-H (H25-H63). P7 (audit) added group I (H64-H69). The P8 hardening test session (v3) re-derived H11 and H20 for v3 (type 8 instead of 6/7) and added groups J (L1, H70-H77) and K (L2, H78-H99). Total: 99 hidden tests. H70-H99 and the new H11/H20 are **not yet audited**.
+Status: P5 wrote groups A-C (H01-H24). P6 wrote groups D-H (H25-H63). P7 (audit) added group I (H64-H69). The P8 hardening test session (v3) re-derived H11 and H20 for v3 (type 8 instead of 6/7) and added groups J (L1, H70-H77) and K (L2, H78-H99). The v3 audit (P8 hardening: audit v3 tests) verified H11, H20, H70-H99 and P04 (33/33 agree, work/notes/test-audit.md "v3 audit"), confirmed by a byte-level regression check that the v2 outcomes of H01-H69 still hold, and added group L (H100-H101). Total: 101 hidden tests, all audited.
 
-Groups: A header H01-H06, B framing and tail H07-H20, C checksum details H21-H24, D payload structure H25-H31, E field checks H32-H40, F transactions H41-H52, G precedence and interactions H53-H61, H API contract H62-H63, I P7 coverage gaps H64-H69 (H64 header, H65/H67 payload, H66 framing, H68/H69 precedence), J write limit L1 H70-H77, K savepoints L2 H78-H99.
+Groups: A header H01-H06, B framing and tail H07-H20, C checksum details H21-H24, D payload structure H25-H31, E field checks H32-H40, F transactions H41-H52, G precedence and interactions H53-H61, H API contract H62-H63, I P7 coverage gaps H64-H69 (H64 header, H65/H67 payload, H66 framing, H68/H69 precedence), J write limit L1 H70-H77, K savepoints L2 H78-H99, L v3-audit coverage gaps H100-H101 (H100 with J, H101 with K).
 
 ## PROMPT.md rule -> tests
 
@@ -26,17 +26,17 @@ Groups: A header H01-H06, B framing and tail H07-H20, C checksum details H21-H24
 | R12 torn tail | H07, H08, H12, H13 | H58, H59, H60, H62, H98 | |
 | R13 payload layout | H25-H31, H65, H67, H78, H79, H80, H81 | H33, H35, H51 (v = 0), H54 (not a phase-1 check); N = 5 ok in every group K test | v3: SAVEPOINT N = 4 (H78), N = 6 (H79); ROLLBACK N = 6 (H80), N = 4 (H81) |
 | R14 txn 0 | H32, H55, H68, H85 | H52 (txn 4294967295 ok), every test with txn 1 | H85: ROLLBACK txn 0 |
-| R15 key | H33, H35, H36, H37, H56 | H34 (k = 32, bytes 21 and 7E ok) | k = 0, k = 33, byte 20, byte 7F (DELETE), byte E9 |
+| R15 key | H33, H35, H36, H37, H56, H100 | H34 (k = 32, bytes 21 and 7E ok) | k = 0, k = 33, byte 20, byte 7F (DELETE), byte E9; H100: DELETE key byte 20 before R19a |
 | R16 value | H39, H40, H69, H76 | H38 (bytes 20 and 7E ok), H51/H62 (v = 0), H61 (not reached) | H76: before R19a |
 | R16a name (v3) | H82, H83, H86 | H84 (21 and 7E ok), H79 (R13 wins), H85 (R14 wins) | SAVEPOINT 20 (H82), ROLLBACK 7F (H83, before R19b), SAVEPOINT 7F txn not open (H86, before R19) |
 | R17 duplicate id | H44, H45, H57 | H95 (new id after a committed txn) | open, committed, aborted id |
 | R18 open limit | H47, H49 | H43, H48 (4 open ok), H57 (R17 wins), H68 (R14 wins) | |
 | R19 open check | H46, H59, H61, H77, H87, H88 | H55, H56, H69, H86 (field check wins) | v3: SAVEPOINT never begun (H87), ROLLBACK after COMMIT (H88), PUT after COMMIT with 8 writes (H77) |
-| R19a write limit (v3) | H70, H71, H72, H73, H74, H75 | H76 (R16 wins), H77 (R19 wins) | exactly 8 ok (H70, H73, H75); 9th PUT same key (H71); 9th write DELETE (H72); ROLLBACK frees room (H73); 9th in list after ROLLBACK (H74); SP/RB at 8 writes (H75); per-transaction list (H70) |
-| R19b savepoint check (v3) | H89, H92, H93 | H83 (R16a wins), H88 (R19 wins), H99 (phase 1 wins) | other txn's name (H89); removed by an earlier ROLLBACK (H92 moved, H93 equal positions) |
-| R20 BEGIN | | every OK test | |
+| R19a write limit (v3) | H70, H71, H72, H73, H74, H75 | H76 (R16 wins), H100 (R15 wins), H77 (R19 wins) | exactly 8 ok (H70, H73, H75); 9th PUT same key (H71); 9th write DELETE (H72); ROLLBACK frees room (H73); 9th in list after ROLLBACK (H74); SP/RB at 8 writes (H75); per-transaction list (H70) |
+| R19b savepoint check (v3) | H89, H92, H93, H101 | H83 (R16a wins), H88 (R19 wins), H99 (phase 1 wins) | other txn's name (H89); removed by an earlier ROLLBACK (H92 moved, H93 equal positions); no SAVEPOINT at all (H101) |
+| R20 BEGIN | H101 (v3: no savepoints at BEGIN) | every OK test, H89 | |
 | R21 write list | H17, H41, H51, H96 | H23, H62 | H96: append after a ROLLBACK |
-| R22 COMMIT apply | H17, H23, H41, H50, H51, H70, H96 | H07, H12, H42, H52, H62, H73, H75, H84, H90, H91, H94, H95 | v3: savepoints discarded (H88) |
+| R22 COMMIT apply | H17, H23, H41, H50, H51, H70, H96 | H07, H12, H42, H52, H62, H73, H75, H84, H90, H91, H94, H95 | v3: "its savepoints are discarded" cannot change an outcome (a closed id never returns: R17, R19); H88 shows the ROLLBACK after COMMIT gets TXN_NOT_OPEN |
 | R23 ABORT | H22, H42, H97 | H49, H62 | H97: after SAVEPOINT/ROLLBACK |
 | R23a SAVEPOINT action (v3) | H91, H95 | H73, H75, H84, H90, H92, H93, H94, H96 | move on reuse (H91, H92); position 0 (H95); same name in two txns (H90) |
 | R23b ROLLBACK action (v3) | H91, H92, H93, H94, H96 | H73, H74, H75, H84, H90, H95, H97, H98 | removes later-set savepoints by setting offset (H91, H92, H93); equal positions (H93); same savepoint twice (H94); kept writes in order (H96); removes nothing (H75) |
@@ -47,7 +47,7 @@ Groups: A header H01-H06, B framing and tail H07-H20, C checksum details H21-H24
 | P1 header first | H05, H06 | | |
 | P2 phase 1 beats phase 2 | H53, H54, H99 | | BAD_TXN_ID vs CHECKSUM_MISMATCH; MALFORMED_PAYLOAD vs RECORD_TOO_LARGE; NO_SAVEPOINT vs CHECKSUM_MISMATCH (H99) |
 | P3 phase 1 stops at first problem | H15 | | |
-| P4 phase-2 order | H55, H56, H57, H61, H68, H69, H76, H77, H79, H83, H85, H86, H88 | | v3 pairs: R16 before R19a (H76); R19 before R19a (H77); R13 before R16a (H79); R16a before R19b (H83); R14 before R16a (H85); R16a before R19 (H86); R19 before R19b (H88) |
+| P4 phase-2 order | H55, H56, H57, H61, H68, H69, H76, H77, H79, H83, H85, H86, H88, H100 | | v3 pairs: R16 before R19a (H76); R15 before R19a (H100); R19 before R19a (H77); R13 before R16a (H79); R16a before R19b (H83); R14 before R16a (H85); R16a before R19 (H86); R19 before R19b (H88) |
 | P5 torn tail not checked | H08, H13, H58, H60, H98 | H59 (error before a torn tail is thrown) | H98: ROLLBACK in the torn tail |
 | Section 2 input not modified | H62 | harness check on every test | |
 | Not errors 1 (DELETE missing key) | H50 | H62, H72 (DELETEs of missing keys count as writes) | |
@@ -76,18 +76,18 @@ Groups: A header H01-H06, B framing and tail H07-H20, C checksum details H21-H24
 | CHECKSUM_MISMATCH | H14, H15, H21, H24, H53, H99 | 6 |
 | MALFORMED_PAYLOAD | H25, H26, H27, H28, H29, H30, H31, H65, H67, H78, H79, H80, H81 | 13 |
 | BAD_TXN_ID | H32, H55, H68, H85 | 4 |
-| BAD_KEY | H33, H35, H36, H37, H56 | 5 |
+| BAD_KEY | H33, H35, H36, H37, H56, H100 | 6 |
 | BAD_VALUE | H39, H40, H69, H76 | 4 |
 | DUPLICATE_TXN | H44, H45, H57 | 3 |
 | TOO_MANY_OPEN | H47, H49 | 2 |
 | TXN_NOT_OPEN | H46, H59, H61, H77, H87, H88 | 6 |
 | TXN_TOO_LARGE | H71, H72, H74 | 3 |
 | BAD_NAME | H82, H83, H86 | 3 |
-| NO_SAVEPOINT | H89, H92, H93 | 3 |
+| NO_SAVEPOINT | H89, H92, H93, H101 | 4 |
 | THROW java.lang.NullPointerException (not a Code) | H63 | 1 |
 | OK (normal result) | H01-H04, H07, H08, H12, H13, H17, H22, H23, H34, H38, H41-H43, H48, H50-H52, H58, H60, H62, H64, H70, H73, H75, H84, H90, H91, H94-H98 | 35 |
 
-Total 2+4+5+6+13+4+5+4+3+2+6+3+3+3+1+35 = 99. All 14 Codes have at least 2 tests.
+Total 2+4+5+6+13+4+6+4+3+2+6+3+3+4+1+35 = 101. All 14 Codes have at least 2 tests.
 
 ## Limits -> tests (both sides)
 
@@ -104,7 +104,7 @@ Total 2+4+5+6+13+4+5+4+3+2+6+3+3+3+1+35 = 99. All 14 Codes have at least 2 tests
 | VALUE_BYTE_MAX 0x7E | H38 (byte 7E), H62 | H40 (byte 7F), H76 (byte 7F) |
 | value length 0 | H51, H62 (v = 0 ok) | no lower limit |
 | MAX_OPEN_TXNS 4 | H43, H48 (4 open) | H47, H49 (5th BEGIN) |
-| MAX_WRITES 8 (v3) | H70 (7 PUT + 1 DELETE, then COMMIT), H73 (8 again after a ROLLBACK), H75 (8 PUTs, then SAVEPOINT and ROLLBACK) | H71 (9th write a PUT), H72 (9th write a DELETE), H74 (9th in the list after a ROLLBACK) |
+| MAX_WRITES 8 (v3) | H70 (7 PUT + 1 DELETE, then COMMIT), H73 (8 again after a ROLLBACK), H75 (8 PUTs, then SAVEPOINT and ROLLBACK) | H71 (9th write a PUT), H72 (9th write a DELETE), H74 (9th in the list after a ROLLBACK); H76, H100 (9th with a field error: the field error wins) |
 | NAME_BYTE_MIN 0x21 (v3) | H84 (SAVEPOINT 21) | H82 (SAVEPOINT 20), H85 (ROLLBACK 20, R14 wins), H79 (20, R13 wins) |
 | NAME_BYTE_MAX 0x7E (v3) | H84 (SAVEPOINT and ROLLBACK 7E) | H83 (ROLLBACK 7F), H86 (SAVEPOINT 7F) |
 | SAVEPOINT N = 5 (v3) | every group K SAVEPOINT | H78 (N = 4), H79 (N = 6) |
@@ -139,7 +139,7 @@ Total 2+4+5+6+13+4+5+4+3+2+6+3+3+3+1+35 = 99. All 14 Codes have at least 2 tests
 | T16 input not modified; null input | H62 (content-rich log), H63 (null) | the harness checks INPUT_MODIFIED on every test |
 | T17 incomplete sorted unsigned | H43 | |
 | T18 R19a counts the current list | H70 (exactly 8, other txn's write does not count), H71 (9th PUT, same key), H72 (9th a DELETE; DELETEs of missing keys count), H73 (ROLLBACK frees room, 8 again), H74 (9th in the list after a ROLLBACK), H75 (SAVEPOINT/ROLLBACK at 8 writes) | |
-| T19 field before TXN_TOO_LARGE; TXN_NOT_OPEN before TXN_TOO_LARGE | H76 (BAD_VALUE), H77 (TXN_NOT_OPEN after COMMIT of 8 writes) | |
+| T19 field before TXN_TOO_LARGE; TXN_NOT_OPEN before TXN_TOO_LARGE | H76 (BAD_VALUE, PUT), H100 (BAD_KEY, DELETE; added by the v3 audit), H77 (TXN_NOT_OPEN after COMMIT of 8 writes) | |
 | T20 reused name moves; moving removes nothing | H91 | H92 (moved savepoint then counts as set by the later record) |
 | T21 ROLLBACK removes later-set savepoints; named one stays | H91 (t removes moved s), H92 (removed s -> NO_SAVEPOINT), H94 (same savepoint twice) | H93 |
 | T22 equal positions; later by setting record; moved savepoint is later | H93 (equal positions, both directions), H92 (moved s is later than t set between its old and new setting) | |
@@ -150,10 +150,10 @@ Total 2+4+5+6+13+4+5+4+3+2+6+3+3+3+1+35 = 99. All 14 Codes have at least 2 tests
 
 ## Questions for the audit (v3)
 
-- None that decide an outcome. Points a reviewer may want to confirm:
-  - H77 and H88 rely on R19 being checked before R19a/R19b for a transaction that is no longer open; P4 states both orders outright, so whether R19a/R19b would "fail" for a closed transaction never matters.
-  - H83 (ROLLBACK name 7F with no such savepoint) relies on the general P4 sentence "So the field checks (R13 to R16a) always come before the transaction checks (R17 to R19b)."; P4 has no separate sentence for BAD_NAME vs NO_SAVEPOINT, but the general one decides it.
-  - H92/H93 rely on R23a "a savepoint is set by the SAVEPOINT record that created it or that moved it most recently" and R23b's offset sentences; both are explicit.
+- Answered by the v3 audit (work/notes/test-audit.md, "v3 audit"): all three points are decided by explicit text, no PROMPT.md change.
+  - H77 and H88: P4 states "For a PUT or DELETE record, TXN_NOT_OPEN (R19) comes before TXN_TOO_LARGE (R19a)." and "For a ROLLBACK record, TXN_NOT_OPEN (R19) comes before NO_SAVEPOINT (R19b)."; clear.
+  - H83: P4's full order sentence and "So the field checks (R13 to R16a) always come before the transaction checks (R17 to R19b)." decide BAD_NAME before NO_SAVEPOINT; no pair sentence is needed.
+  - H92/H93: R23a ("set by the SAVEPOINT record that created it or that moved it most recently") and R23b ("Only these offsets decide, not the positions") are explicit; only SAVEPOINT records set savepoints.
 
 ## P8 hardening tests (v3), 2026-11-24
 
@@ -208,3 +208,9 @@ Total 2+4+5+6+13+4+5+4+3+2+6+3+3+3+1+35 = 99. All 14 Codes have at least 2 tests
 - The three wording points above (R17 aborted id, R18 "does not count", P5 second sentence) were assessed as clear; PROMPT.md unchanged.
 - Group I added (H64-H69) for gaps: R3 torn at L = 3 (H64); R13 DELETE N = 5 + k failing side (H65); R8 before R10 on the last record, T3 (H66); R13 PUT value one byte short (H67); R14 before R18 on a BEGIN, T11 (H68); R16 before R19, T11 (H69).
 - Public tests P01-P03 now carry a short derivation comment (bytes and expected lines unchanged).
+
+## v3 audit (2026-11-24)
+
+- Independent audit of P04, H11, H20, H70-H99 (P7 method; work/notes/test-audit.md "v3 audit"): 33 of 33 agree; no expected line changed; one comment reworded (H78, about the v2 H11 bytes).
+- Regression check of H01-H69 (byte dump, frames split by N only): no reachable type-6/7 frame, at most 5 writes per log, so their v2 outcomes hold under v3.
+- Group L added: H100 (DELETE with key byte 20 while the list holds 8: BAD_KEY before TXN_TOO_LARGE, T19's BAD_KEY half) and H101 (ROLLBACK with no SAVEPOINT anywhere in the log: NO_SAVEPOINT; R19b first case, R20 "no savepoints").

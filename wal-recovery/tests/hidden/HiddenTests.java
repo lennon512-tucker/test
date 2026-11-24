@@ -23,7 +23,7 @@ import java.util.List;
  * D payload structure (H25-H31), E field checks (H32-H40), F transactions (H41-H52),
  * G precedence and interactions (H53-H61), H API contract (H62-H63),
  * I coverage gaps found by the P7 audit (H64-H69), J write limit L1 (H70-H77),
- * K savepoints L2 (H78-H99).
+ * K savepoints L2 (H78-H99), L coverage gaps found by the v3 audit (H100-H101).
  */
 public final class HiddenTests {
     private HiddenTests() {}
@@ -1719,7 +1719,8 @@ public final class HiddenTests {
         //      R9 22 <= 31; R10 correct -> intact (the payload layout is a phase-2 check).
         //      p = 22 intact; p = 31 = L (R5).
         //   3. Phase 2: BEGIN 1 opens. SAVEPOINT @13: R13 "SAVEPOINT, ROLLBACK: N = 5"; N = 4 ->
-        //      throw MALFORMED_PAYLOAD at 13. (These are the bytes of the v2 test H11.)
+        //      throw MALFORMED_PAYLOAD at 13. (The record @13 has the bytes of the type-6 record
+        //      of the v2 test H11, which stood at offset 4 there.)
         // Expected: ERR MALFORMED_PAYLOAD@13
         c.add(TestCase.of("H78", "sp_payload_n4_is_malformed", "R7,R11,R13",
                 LogBuilder.wal().begin(1).record(6, Hex.bytes("00 00 00 01")).commit(1).build(),
@@ -2147,6 +2148,55 @@ public final class HiddenTests {
                 LogBuilder.wal().begin(1).rollback(1, 0x73).put(1, "a", "1").corruptLastChecksum()
                         .commit(1).build(),
                 "ERR CHECKSUM_MISMATCH@23"));
+
+        // =====================================================================================
+        // Group L: added by the v3 audit to close coverage gaps (work/notes/test-audit.md,
+        // "v3 audit"). H100 belongs with group J (T19, BAD_KEY half), H101 with group K (R19b
+        // and R20: a new transaction has no savepoints).
+        // Checksum of the new short record (covered bytes, s1 and s2 traces, stored s2 s1):
+        //   DELETE 1 "x y"  03 00 08 00 00 00 01 03 78 20 79  s1 3,3,11,11,11,11,12,15,135,167,33
+        //                   s2 3,6,17,28,39,50,62,77,212,124,157 -> 9D 21
+        // =====================================================================================
+
+        // H100 prec_bad_key_before_txn_too_large
+        // Rules: P4, R15, R19a
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). The 8 PUTs of H75 @13 ... @111 (last ends
+        //      125). DELETE 1 key "x y" (bytes 78 20 79, k = 3) @125: N = 5+3 = 8, size 13, ends
+        //      138 (9D 21, table). COMMIT 1 @138, ends 147 (31 09). L = 147.
+        //   2. Phase 1: all 11 intact (types 1, 2, 3, 4; N <= 9; each fits; checksums correct);
+        //      p = 147 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens; the 8 PUTs -> list1 has 8 writes (R19a 0..7 before each).
+        //      DELETE @125 has two problems: key byte 20 (R15) and a full write list (R19a).
+        //      R13 N = 8 >= 5, k = 3, 8 = 5+3 ok; R14 txn 1; R15 k = 3 is in 1..32, but key byte
+        //      20 < KEY_BYTE_MIN 21 -> throw BAD_KEY at 125.
+        //   4. Deciding rule P4: "So the field checks (R13 to R16a) always come before the
+        //      transaction checks (R17 to R19b)." (Checking R19a first would give
+        //      TXN_TOO_LARGE@125.)
+        // Expected: ERR BAD_KEY@125
+        c.add(TestCase.of("H100", "prec_bad_key_before_txn_too_large", "P4,R15,R19a",
+                LogBuilder.wal().begin(1).put(1, "a", "1").put(1, "b", "2").put(1, "c", "3")
+                        .put(1, "d", "4").put(1, "e", "5").put(1, "f", "6").put(1, "g", "7")
+                        .put(1, "h", "8").del(1, "x y").commit(1).build(),
+                "ERR BAD_KEY@125"));
+
+        // H101 rb_without_any_savepoint_is_no_savepoint
+        // Rules: R19b, R20
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). PUT 1 a=1 @13, ends 27 (36 A0).
+        //      ROLLBACK 1 s @27, ends 37 (CB 80). COMMIT 1 @37, ends 46 (31 09). L = 46.
+        //      There is no SAVEPOINT record anywhere in the log.
+        //   2. Phase 1: all 4 intact (R7 types 1, 2, 7, 4); p = 46 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens "with an empty write list and no savepoints" (R20).
+        //      PUT -> list1 [a=1]. ROLLBACK @27: R13 N = 5; R14 txn 1; R16a 73 ok; R19 txn 1
+        //      open; R19b txn 1 has no savepoint s ("a name that no SAVEPOINT record of this
+        //      transaction has set") -> throw NO_SAVEPOINT at 27.
+        //   (Treating an unknown name as position 0 would empty the list and give
+        //   OK committed=[1] with state {}; ignoring the ROLLBACK would give state {a=1}.)
+        // Expected: ERR NO_SAVEPOINT@27
+        c.add(TestCase.of("H101", "rb_without_any_savepoint_is_no_savepoint", "R19b,R20",
+                LogBuilder.wal().begin(1).put(1, "a", "1").rollback(1, 0x73).commit(1).build(),
+                "ERR NO_SAVEPOINT@27"));
 
         return c;
     }

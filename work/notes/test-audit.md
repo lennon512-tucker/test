@@ -339,3 +339,197 @@ already had 2 tests and every trap had at least one):
 - Suite after the audit: 3 public + 69 hidden tests. Stub run (`work/scratch/stub`): public 0/3,
   hidden 0/69, and all 72 FAIL with `THROW java.lang.UnsupportedOperationException`, so the
   suite compiles and runs. `runner/selftest.py`: OK (10 tests).
+
+---
+
+# v3 audit
+
+Session "P8 hardening: audit v3 tests", 2026-11-24. Auditor did not write the tests. PROMPT.md DRAFT v3 (401 lines).
+Scope: P04, H11, H20, H70-H99 (33 tests), plus the regression check of H01-H69 (step 5) and v3 coverage (step 6).
+
+## v3 method
+
+1. `work/scratch/p8v/strip_v3.py` prints, for the tests in scope, only the id and the input-building expression
+   (comments, names, rule lists and expected strings removed; output `work/scratch/p8v/stripped.txt`).
+2. The rows under "v3 derivations" were written from that view, `task/PROMPT.md` v3 and
+   `runner/harness/LogBuilder.java` only, before any test comment, expected line, `coverage.md`, `examples.md`,
+   `spec-audit.md` or `spec-change-v3.md` was opened. Each row was appended when finished.
+3. Arithmetic aids only (G3/G4): `work/scratch/p8v/DumpInputs.java` (id, L, hex of each input; no expected lines),
+   `work/scratch/p8v/frames.py` (splits by N only: offset, type byte, N, end), `work/scratch/p8v/fletcher.py`
+   (Fletcher-16 s2 s1 of a byte string). Every L and offset below was worked out by hand first and then matched
+   against the dump/split (33/33 match). The checksums that matter (P04 all 8 records, H11, H20, H98, H99) were traced
+   by hand and then matched with fletcher.py (all match).
+4. LogBuilder facts used (v3 additions): `savepoint(t, n)` = record(6, txn u32 + name byte) and `rollback(t, n)` =
+   record(7, ...), both N = 5, size 10, correct checksum; `record(t, p)` = size 5 + |p| with correct checksum for any
+   type byte; `frame()` writes the given checksum; `corruptLastChecksum()` XORs both stored bytes of the last record with
+   0x01 (always wrong afterwards, since a stored byte that equalled s2/s1 changes). Sizes: BEGIN/COMMIT/ABORT 9,
+   PUT 1-byte key + 1-byte value 14, DELETE 1-byte key 11, SAVEPOINT/ROLLBACK 10.
+
+Notation: `@p` record at offset p, `->e` it ends at e; WL = write list; sp x(pos n, set@q) = savepoint named x with
+position n whose setting SAVEPOINT record is at q. Names: 0x73 "s", 0x74 "t", 0x78 "x", 0x79 "y", 0x7A "z".
+"Phase 1 intact" means: every type byte at a reached p is 1-7 (R7), N <= 1024 (R8), the record fits (R9), and the
+checksum is correct by construction (R10), so R11 each time and R5 at p = L.
+
+## v3 derivations (own, from the stripped view; status filled in after the comparison)
+
+| Test | Layout (offsets, by hand; matched the dump) | Own derivation (PROMPT.md v3) | Own outcome | Status |
+|---|---|---|---|---|
+| P04 | magic; BEGIN1@4->13; PUT1 a=1@13->27; SP1 0x73@27->37; PUT1 b=2@37->51; DEL1 a@51->62; RB1 0x73@62->72; PUT1 c=3@72->86; COMMIT1@86->95; L=95 | Checksums by hand: @4 1C 06 (check value); @13 bytes 02 00 09 00 00 00 01 01 61 00 01 31: s1 2,2,11,11,11,11,12,13,110,110,111,160; s2 2,4,15,26,37,48,60,73,183,38,149,54 -> 36 A0 = stored; @27 06 00 05 00 00 00 01 73: s1 ...12,127, s2 6,12,23,34,45,56,68,195 -> C3 7F = stored; @37 (b,2) -> 3B A2 = stored; @51 03 00 06 00 00 00 01 01 61 -> AB 6C = stored; @62 07 00 05 00 00 00 01 73: s1 ...13,128, s2 7,14,26,38,50,62,75,203 -> CB 80 = stored; @72 (c,3) -> 40 A4 = stored; @86 -> 31 09 = stored. Phase 1: all intact, R5 at 95. Phase 2: BEGIN opens 1 (R20). PUT a: R13 N=9 >=5, k=1, 9 >= 8, v=1, 9 = 9; R14-R16 ok; R19 open; R19a WL 0 < 8; WL [a=1]. SP 0x73: R13 N=5, R16a 0x73 in 0x21-0x7E, R19 open; R23a n=1, create s(pos 1, set@27). PUT b: WL [a=1,b=2]. DEL a: R13 N=6 = 5+1; WL [a=1,b=2,del a]. RB 0x73: R19b s exists; R23b keep first 1 -> [a=1]; no other savepoint; s stays. PUT c: WL [a=1,c=3]. COMMIT: R22 a=1, c=3; committed [1]. | `OK state={"a"="1", "c"="3"} committed=[1] aborted=[] incomplete=[] validLength=95 tornTail=false` || verified (agrees) |
+| H11 | magic; type-8 record(8, 00 00 00 01)@4->13 (N=4, correct checksum 4D 0D: s1 8,8,12,12,12,12,13, s2 8,16,28,40,52,64,77); BEGIN1@13->22; L=22 | p=4: R5 4 != 22; R6 L-p = 18; R7 type 8 is not 1-7 -> throw. Correct checksum and the valid BEGIN after it never matter. | `ERR UNKNOWN_TYPE@4` || verified (agrees) |
+| H20 | magic; BEGIN1@4->13; frame(8, 4, 00 00 00 01, 0x0000)@13->22 = L (stored 00 00, correct would be 4D 0D); L=22 | p=4 intact (check value). p=13: R5 13 != 22; R6 L-p = 9; R7 type 8 -> throw UNKNOWN_TYPE at 13. R7 comes before R10, so the wrong checksum on a record that ends exactly at L (which would be a torn tail) is never reached (section 7.2 "R7 and R8 apply to every record ... a last record whose checksum is wrong"). | `ERR UNKNOWN_TYPE@13` || verified (agrees) |
+| H70 | magic; BEGIN1@4->13; BEGIN2@13->22; PUT2 z=0@22->36; PUT1 a=1@36->50, b=2@50->64, c=3@64->78, d=4@78->92, e=5@92->106, f=6@106->120, g=7@120->134; DEL1 a@134->145; COMMIT1@145->154; COMMIT2@154->163; L=163 | Phase 1 all intact, R5 at 163. Phase 2: BEGIN 1, BEGIN 2 (R17 new ids, R18 0 then 1 open). PUT2 z: txn 2 WL [z=0]. PUT1 a..g: R19a before each, txn 1 WL holds 0..6 < 8; WL 7 writes. DEL1 a @134: R13 N=6; R15 'a' ok; R19 open; R19a txn 1 WL holds 7 < 8 (txn 2's write is in txn 2's list, not counted) -> ok, WL 8 = MAX_WRITES (not an error, section 10 item 10). COMMIT1: R22 a=1,b=2,c=3,d=4,e=5,f=6,g=7, then DELETE a removes a; committed [1]. COMMIT2: z=0; committed [1, 2]. | `OK state={"b"="2", "c"="3", "d"="4", "e"="5", "f"="6", "g"="7", "z"="0"} committed=[1, 2] aborted=[] incomplete=[] validLength=163 tornTail=false` || verified (agrees) |
+| H71 | magic; BEGIN1@4->13; 9 x PUT1 "a"@13,27,41,55,69,83,97,111,125 (values 1..9; each ->+14); COMMIT1@139->148; L=148 | Phase 1 all intact. Phase 2: PUTs @13..@111 = 8 writes (R19a: 0..7 < 8). PUT a=9 @125: R13-R16 ok, R19 open, R19a WL already holds 8 = MAX_WRITES -> throw. Each PUT counts even with the same key (R19a "also when it writes the same key"). | `ERR TXN_TOO_LARGE@125` || verified (agrees) |
+| H72 | magic; BEGIN1@4->13; PUT a@13->27; DEL b@27->38; PUT c@38->52; DEL d@52->63; PUT e@63->77; DEL f@77->88; PUT g@88->102; DEL h@102->113; DEL a@113->124; COMMIT1@124->133; L=133 | Phase 1 all intact. Phase 2: writes @13..@102 alternate PUT/DELETE, 8 writes (WL 0..7 < 8 before each). DEL a @113: R13 N=6, R14, R15 ok, R19 open, R19a WL holds 8 -> throw (DELETE counts as a write, also of a key not in state). | `ERR TXN_TOO_LARGE@113` || verified (agrees) |
+| H73 | magic; BEGIN1@4->13; PUT a..f@13,27,41,55,69,83 (->97); SP1 0x73@97->107; PUT g@107->121; PUT h@121->135; RB1 0x73@135->145; PUT i=9@145->159; PUT j=0@159->173; COMMIT1@173->182; L=182 | Phase 1 all intact (types 1,2,6,7,4). Phase 2: WL a..f (6). SP 0x73: R16a ok, R23a s(pos 6, set@97). PUT g (6<8), PUT h (7<8): WL 8. RB 0x73: R19 open, R19b s exists; R23b keep first 6 -> [a..f]; no other savepoints; s stays. PUT i: R19a WL 6 < 8 -> 7. PUT j: 7 < 8 -> 8. COMMIT: a=1,b=2,c=3,d=4,e=5,f=6,i=9,j=0 (10 PUT records in total, but at most 8 in the list at any time: R19a, section 10 item 10). | `OK state={"a"="1", "b"="2", "c"="3", "d"="4", "e"="5", "f"="6", "i"="9", "j"="0"} committed=[1] aborted=[] incomplete=[] validLength=182 tornTail=false` || verified (agrees) |
+| H74 | as H73 up to PUT j@159->173; then PUT k=1@173->187; COMMIT1@187->196; L=196 | Phase 1 all intact. Phase 2 as H73: after PUT j the WL holds 8 (a..f, i, j). PUT k @173: R13-R16 ok, R19 open, R19a WL already holds 8 -> throw. | `ERR TXN_TOO_LARGE@173` || verified (agrees) |
+| H75 | magic; BEGIN1@4->13; PUT a..h@13,27,41,55,69,83,97,111 (->125); SP1 0x78@125->135; RB1 0x78@135->145; COMMIT1@145->154; L=154 | Phase 1 all intact. Phase 2: WL 8 after h (R19a 0..7 < 8). SP 0x78: R19a applies to PUT/DELETE only (SAVEPOINT/ROLLBACK never count; section 10 item 11) -> R23a x(pos 8, set@125). RB 0x78: R19b x exists; R23b keep first 8 (removes nothing; section 10 item 13); x stays. COMMIT: a..h. | `OK state={"a"="1", "b"="2", "c"="3", "d"="4", "e"="5", "f"="6", "g"="7", "h"="8"} committed=[1] aborted=[] incomplete=[] validLength=154 tornTail=false` || verified (agrees) |
+| H76 | magic; BEGIN1@4->13; PUT a..h@13..111 (->125); PUT i=0x7F@125->139 (latin1 of U+007F is byte 7F; dump shows `02 00 09 00 00 00 01 01 69 00 01 7F A4 F6`); COMMIT1@139->148; L=148 | Phase 1 all intact (correct checksum by construction). Phase 2: WL 8 after h. PUT @125: R13 ok; R14 ok; R15 'i' ok; R16 value byte 0x7F outside 0x20-0x7E -> throw BAD_VALUE. R16 is a field check before R19a (P4), so the full write list does not matter. | `ERR BAD_VALUE@125` || verified (agrees) |
+| H77 | magic; BEGIN1@4->13; PUT a..h@13..111 (->125); COMMIT1@125->134; PUT1 i=9@134->148; L=148 | Phase 1 all intact. Phase 2: WL 8; COMMIT applies a..h, committed [1], txn 1 no longer open. PUT @134: R13-R16 ok; R19 txn 1 is not open (already committed) -> throw TXN_NOT_OPEN. R19 comes before R19a (P4: "For a PUT or DELETE record, TXN_NOT_OPEN (R19) comes before TXN_TOO_LARGE (R19a)"), and the committed txn has no write list anyway. | `ERR TXN_NOT_OPEN@134` || verified (agrees) |
+| H78 | magic; BEGIN1@4->13; record(6, 00 00 00 01)@13->22 (type 6, N=4, correct checksum); COMMIT1@22->31; L=31 | Phase 1: type 6 accepted by R7, N=4 <= 1024, fits, checksum correct -> all intact, R5 at 31. Phase 2: BEGIN ok. @13 SAVEPOINT: R13 needs N = 5, N = 4 -> throw MALFORMED_PAYLOAD. | `ERR MALFORMED_PAYLOAD@13` || verified (agrees) |
+| H79 | magic; BEGIN1@4->13; record(6, 00 00 00 01 20 73)@13->24 (N=6); COMMIT1@24->33; L=33 | Phase 1 all intact. Phase 2: @13 SAVEPOINT R13 N = 6 != 5 -> throw MALFORMED_PAYLOAD. (Payload byte 4 = 0x20 would fail R16a, but R13 comes first.) | `ERR MALFORMED_PAYLOAD@13` || verified (agrees) |
+| H80 | magic; BEGIN1@4->13; SP1 0x73@13->23; record(7, 00 00 00 01 73 73)@23->34 (N=6); COMMIT1@34->43; L=43 | Phase 1 all intact. Phase 2: SP creates s(pos 0, set@13). @23 ROLLBACK: R13 N = 6 != 5 -> throw MALFORMED_PAYLOAD (even though the name byte 0x73 names an existing savepoint). | `ERR MALFORMED_PAYLOAD@23` || verified (agrees) |
+| H81 | magic; BEGIN1@4->13; SP1 0x73@13->23; record(7, 00 00 00 01)@23->32 (N=4); COMMIT1@32->41; L=41 | Phase 1 all intact. Phase 2: @23 ROLLBACK R13 N = 4 != 5 -> throw MALFORMED_PAYLOAD. | `ERR MALFORMED_PAYLOAD@23` || verified (agrees) |
+| H82 | magic; BEGIN1@4->13; PUT a=1@13->27; SP1 0x20@27->37; COMMIT1@37->46; L=46 | Phase 1 all intact. Phase 2: PUT ok. @27 SAVEPOINT: R13 N=5; R14 txn 1; R16a name 0x20 < 0x21 -> throw BAD_NAME. | `ERR BAD_NAME@27` || verified (agrees) |
+| H83 | magic; BEGIN1@4->13; SP1 0x73@13->23; RB1 0x7F@23->33; COMMIT1@33->42; L=42 | Phase 1 all intact. Phase 2: SP s(pos 0). @23 ROLLBACK: R13 N=5; R14 ok; R16a name 0x7F > 0x7E -> throw BAD_NAME. The name also has no savepoint (R19b), but R16a comes earlier in the R13..R19b order (P4 2nd sentence: "the first failing check in the order ... decides the code"). | `ERR BAD_NAME@23` || verified (agrees) |
+| H84 | magic; BEGIN1@4->13; SP1 0x21@13->23; PUT a=1@23->37; SP1 0x7E@37->47; PUT b=2@47->61; RB1 0x7E@61->71; PUT c=3@71->85; COMMIT1@85->94; L=94 | Phase 1 all intact. Phase 2: SP 0x21 (lower edge, allowed) -> !(pos 0, set@13). PUT a: WL [a=1]. SP 0x7E (upper edge, allowed) -> ~(pos 1, set@37). PUT b: [a=1,b=2]. RB 0x7E: R16a ok, R19b exists; keep first 1 -> [a=1]; remove other savepoints set at an offset > 37: ! set@13 stays; ~ stays. PUT c: [a=1,c=3]. COMMIT: a=1, c=3. | `OK state={"a"="1", "c"="3"} committed=[1] aborted=[] incomplete=[] validLength=94 tornTail=false` || verified (agrees) |
+| H85 | magic; BEGIN1@4->13; SP1 0x73@13->23; RB txn 0 name 0x20@23->33; COMMIT1@33->42; L=42 | Phase 1 all intact. Phase 2: SP ok. @23 ROLLBACK: R13 N=5 ok; R14 txn = 0 -> throw BAD_TXN_ID (before R16a BAD_NAME for 0x20 and before R19). | `ERR BAD_TXN_ID@23` || verified (agrees) |
+| H86 | magic; BEGIN1@4->13; SP txn 2 name 0x7F@13->23; COMMIT1@23->32; L=32 | Phase 1 all intact. Phase 2: @13 SAVEPOINT: R13 ok; R14 txn 2 != 0; R16a 0x7F outside -> throw BAD_NAME, before R19 (txn 2 never began) (P4 last sentence). | `ERR BAD_NAME@13` || verified (agrees) |
+| H87 | magic; BEGIN1@4->13; PUT1 a=1@13->27; SP txn 2 0x73@27->37; COMMIT1@37->46; L=46 | Phase 1 all intact. Phase 2: PUT ok. @27 SAVEPOINT txn 2: R13, R14, R16a ok; R19 txn 2 has no BEGIN, not open -> throw TXN_NOT_OPEN. | `ERR TXN_NOT_OPEN@27` || verified (agrees) |
+| H88 | magic; BEGIN1@4->13; PUT a=1@13->27; SP1 0x73@27->37; COMMIT1@37->46; RB1 0x73@46->56; L=56 | Phase 1 all intact. Phase 2: WL [a=1]; s(pos 1). COMMIT: a=1, committed [1], txn 1 closed and its savepoints discarded (R22). @46 ROLLBACK: R13, R14, R16a ok; R19 txn 1 not open -> throw TXN_NOT_OPEN (R19 before R19b, P4). | `ERR TXN_NOT_OPEN@46` || verified (agrees) |
+| H89 | magic; BEGIN1@4->13; BEGIN2@13->22; SP1 0x73@22->32; PUT2 a=1@32->46; RB2 0x73@46->56; COMMIT1@56->65; COMMIT2@65->74; L=74 | Phase 1 all intact. Phase 2: txns 1, 2 open. SP1 s for txn 1. PUT2: txn 2 WL [a=1]. @46 ROLLBACK txn 2 s: R13-R16a ok; R19 txn 2 open; R19b txn 2 has no savepoint s (txn 1's does not count) -> throw NO_SAVEPOINT. | `ERR NO_SAVEPOINT@46` || verified (agrees) |
+| H90 | magic; BEGIN1@4->13; BEGIN2@13->22; PUT1 a=1@22->36; SP1 0x73@36->46; SP2 0x73@46->56; PUT1 b=2@56->70; PUT2 c=3@70->84; RB2 0x73@84->94; RB1 0x73@94->104; COMMIT1@104->113; COMMIT2@113->122; L=122 | Phase 1 all intact. Phase 2: txn 1 WL [a=1]; SP1 -> txn 1 s(pos 1, set@36); SP2 -> txn 2 s(pos 0, set@46) (own savepoint, does not move txn 1's). PUT1 b -> txn 1 [a=1,b=2]; PUT2 c -> txn 2 [c=3]. RB2 s: txn 2 keeps first 0 -> []; txn 1 untouched. RB1 s: txn 1 keeps first 1 -> [a=1]. COMMIT1: a=1, committed [1]. COMMIT2: empty WL, committed [1, 2]. | `OK state={"a"="1"} committed=[1, 2] aborted=[] incomplete=[] validLength=122 tornTail=false` || verified (agrees) |
+| H91 | magic; BEGIN1@4->13; SP s@13->23; PUT a=1@23->37; SP t@37->47; PUT b=2@47->61; SP s@61->71; PUT c=3@71->85; RB s@85->95; RB t@95->105; PUT d=4@105->119; COMMIT1@119->128; L=128 | Phase 1 all intact. Phase 2: s(pos 0, set@13). [a]. t(pos 1, set@37). [a,b]. SP s again: R23a moves s -> s(pos 2, set@61); t unchanged. [a,b,c]. RB s: keep first 2 -> [a,b]; remove others set at offset > 61: t set@37 stays. RB t: R19b t exists; keep first 1 -> [a]; remove others set at offset > 37: s set@61 removed. PUT d -> [a,d]. COMMIT: a=1, d=4. | `OK state={"a"="1", "d"="4"} committed=[1] aborted=[] incomplete=[] validLength=128 tornTail=false` || verified (agrees) |
+| H92 | magic; BEGIN1@4->13; SP s@13->23; PUT a=1@23->37; SP t@37->47; PUT b=2@47->61; SP s@61->71; RB t@71->81; RB s@81->91; COMMIT1@91->100; L=100 | Phase 1 all intact. Phase 2: s(pos 0, set@13); [a]; t(pos 1, set@37); [a,b]; s moved -> s(pos 2, set@61) (R23a: "a savepoint is set by the SAVEPOINT record that created it or that moved it most recently"). RB t: keep first 1 -> [a]; remove others set at offset > 37: s set@61 -> removed (its creating record @13 does not count any more). @81 RB s: R19 open; R19b no savepoint s (removed by the ROLLBACK @71, not set again since) -> throw NO_SAVEPOINT. | `ERR NO_SAVEPOINT@81` || verified (agrees) |
+| H93 | magic; BEGIN1@4->13; PUT a=1@13->27; SP x@27->37; SP y@37->47; PUT b=2@47->61; RB y@61->71; RB x@71->81; RB y@81->91; COMMIT1@91->100; L=100 | Phase 1 all intact. Phase 2: [a]; x(pos 1, set@27); y(pos 1, set@37); [a,b]. RB y: keep first 1 -> [a]; remove others set at offset > 37: x set@27 stays; y stays (the ROLLBACK is not a setting record). RB x: keep first 1 (nothing removed); remove others set at offset > 27: y set@37 -> removed, although its position equals x's (R23b "Only these offsets decide, not the positions"). @81 RB y: R19b no savepoint y -> throw NO_SAVEPOINT. | `ERR NO_SAVEPOINT@81` || verified (agrees) |
+| H94 | magic; BEGIN1@4->13; PUT a=1@13->27; SP s@27->37; PUT b=2@37->51; RB s@51->61; PUT c=3@61->75; RB s@75->85; PUT d=4@85->99; COMMIT1@99->108; L=108 | Phase 1 all intact. Phase 2: [a]; s(pos 1, set@27); [a,b]; RB s -> [a], s stays (R23b); [a,c]; RB s again (allowed: section 10 item 13) -> [a]; [a,d]; COMMIT a=1, d=4. | `OK state={"a"="1", "d"="4"} committed=[1] aborted=[] incomplete=[] validLength=108 tornTail=false` || verified (agrees) |
+| H95 | magic; BEGIN2@4->13; PUT2 b=2@13->27; COMMIT2@27->36; BEGIN1@36->45; SP1 0x7A@45->55; PUT1 a=1@55->69; DEL1 b@69->80; RB1 0x7A@80->90; COMMIT1@90->99; L=99 | Phase 1 all intact. Phase 2: txn 2 commits b=2 -> state {b=2}, committed [2]. BEGIN 1: R17 id 1 not used before; R18 0 open. z(pos 0, set@45). WL [a=1, del b]. RB z: keep first 0 -> [] (both writes never applied). COMMIT1: no writes (section 10 item 3), committed [2, 1]. State {b=2}. | `OK state={"b"="2"} committed=[2, 1] aborted=[] incomplete=[] validLength=99 tornTail=false` || verified (agrees) |
+| H96 | magic; BEGIN1@4->13; PUT a=1@13->27; PUT b=2@27->41; SP s@41->51; PUT a=3@51->65; DEL b@65->76; PUT c=4@76->90; RB s@90->100; PUT b=5@100->114; COMMIT1@114->123; L=123 | Phase 1 all intact. Phase 2: [a=1,b=2]; s(pos 2, set@41); [a=1,b=2,a=3,del b,c=4]; RB s -> [a=1,b=2]; PUT b=5 -> [a=1,b=2,b=5]. COMMIT in WL order: a=1, b=2, b=5 -> {a=1, b=5}. | `OK state={"a"="1", "b"="5"} committed=[1] aborted=[] incomplete=[] validLength=123 tornTail=false` || verified (agrees) |
+| H97 | magic; BEGIN1@4->13; PUT a=1@13->27; SP s@27->37; PUT b=2@37->51; RB s@51->61; PUT c=3@61->75; ABORT1@75->84; L=84 | Phase 1 all intact. Phase 2: [a]; s(pos 1); [a,b]; RB -> [a]; [a,c]; ABORT: R23 discard, aborted [1]. State {}. | `OK state={} committed=[] aborted=[1] incomplete=[] validLength=84 tornTail=false` || verified (agrees) |
+| H98 | magic; BEGIN1@4->13; PUT1 a=1@13->27; SP1 s@27->37; PUT1 a=2@37->51; RB1 s@51->61; BEGIN2@61->70; PUT2 b=1@70->84; COMMIT2@84->93; RB1 0x71@93->103 with corrupted checksum (correct C9 7E: s1 7,7,12,12,12,12,13,126, s2 7,14,26,38,50,62,75,201; stored C8 7F); L=103 | Phase 1: records @4..@84 intact. p=93: R6 10 left; R7 type 7 ok; R8 N=5; R9 93+10 = 103 = L fits; R10 checksum wrong and the record ends exactly at L -> torn tail at 93 (R12): validLength 93, tornTail true. Phase 2 (records up to @84): [a=1]; s(pos 1); [a=1,a=2]; RB -> [a=1]; BEGIN 2; [b=1]; COMMIT2: b=1, committed [2]. The ROLLBACK to unknown 0x71 is in the torn tail and never checked (P5). Txn 1 still open -> incomplete [1]. | `OK state={"b"="1"} committed=[2] aborted=[] incomplete=[1] validLength=93 tornTail=true` || verified (agrees) |
+| H99 | magic; BEGIN1@4->13; RB1 0x73@13->23; PUT1 a=1@23->37 with corrupted checksum (correct 36 A0, stored 37 A1); COMMIT1@37->46; L=46 | Phase 1: @4 intact; @13 type 7 accepted (R7), N=5, fits, correct -> intact; @23: fits (37 <= 46), checksum wrong, ends at 37 < 46 -> throw CHECKSUM_MISMATCH at 23. Phase 2 never runs, so the ROLLBACK @13 with no savepoint (NO_SAVEPOINT) is never reached (P2: a phase-1 error anywhere beats a phase-2 error, even in an earlier record). | `ERR CHECKSUM_MISMATCH@23` || verified (agrees) |
+
+All 33 rows above were written before any expected line or test comment was read.
+
+## v3 comparison (step 3, written after all 33 derivations)
+
+- `work/scratch/p8v/compare.py` compares the "Own outcome" column above with each test's expected literal (text only):
+  **33 of 33 agree** (P04, H11, H20, H70-H99). No expected line changed.
+- Each test's derivation comment was then read and compared with the row above: same offsets, sizes, L, check
+  sequence and actions in all 33. `work/scratch/p8v/cks_compare.py` lists the stored checksum of every frame (split by
+  N, from the dump) next to the hex pairs written in the comment: every checksum the comments give is the stored one,
+  or a stated "correct would be" value that matches fletcher.py (H11/H20 4D 0D, H98 C9 7E, H99 36 A0).
+- One comment inaccuracy (no outcome effect): H78 said "(These are the bytes of the v2 test H11.)". v2 H11 was
+  `wal().record(6, 00 00 00 01).begin(1)` (git 3e061b6), so only the type-6 record is shared, not the test's bytes
+  (H78 has BEGIN first and a COMMIT after). Reworded to "The record @13 has the bytes of the type-6 record of the v2
+  test H11, which stood at offset 4 there."
+
+## v3 cited rules and quotes (step 4)
+
+- Every "Rules:" line equals the rules argument of its TestCase (33/33), and every cited rule exists in PROMPT.md v3.
+  The rule that decides the outcome is cited in each: R7 (H11, H20; H78 R7 accepts type 6 so R13 decides), R13
+  (H78-H81), R14 (H85), R15 (H100), R16 (H76), R16a (H82, H83, H86), R19 (H77, H87, H88), R19a (H71, H72, H74),
+  R19b (H89, H92, H93, H101), R10 (H98 torn, H99 mismatch), and R21-R23b/R25/R26 for the OK results. Rules cited
+  as "also" (for example R19a in P04/H75, R10 in H20, R19b in H83/H88/H99) are the rules a wrong order would apply.
+  "Not errors" item numbers cited (3, 7, 9, 10, 11, 12, 13, 14) match PROMPT.md section 10.
+- Quotes: `work/scratch/p8v/quotes.py` plus a direct check of the quotes it could not pair (H70, H76, H77): every
+  quoted PROMPT.md sentence or phrase in the in-scope comments occurs verbatim in PROMPT.md v3 (26 quotes in the
+  33 tests, plus 3 in the added H100/H101; 0 inexact), including the P2, P4 and P5 sentences used as deciding rules.
+- Every "// Expected:" comment equals its literal (101/101 hidden tests after the additions below).
+
+### The three points left in coverage.md "Questions for the audit"
+
+1. **H77 / H88 (R19 before R19a / R19b).** Decided, not ambiguous. Section 7.3 lists the order R13 ... R19, R19a,
+   R19b with "The first check that fails decides the error", and P4 states both pairs outright: "For a PUT or
+   DELETE record, TXN_NOT_OPEN (R19) comes before TXN_TOO_LARGE (R19a)." and "For a ROLLBACK record, TXN_NOT_OPEN
+   (R19) comes before NO_SAVEPOINT (R19b)." Whether R19a/R19b could "fail" for a closed transaction (whose write
+   list and savepoints are gone, R22) never matters, because R19 is reached first.
+2. **H83 (BAD_NAME vs NO_SAVEPOINT).** Decided. P4 has no pair sentence for R16a vs R19b, but its second sentence
+   gives the full order ("the first failing check in the order R13, R14, R15, R16, R16a, R17, R18, R19, R19a, R19b
+   decides the code"), its third sentence says "So the field checks (R13 to R16a) always come before the
+   transaction checks (R17 to R19b).", and section 7.3 calls R13-R16a field checks and R17-R19b transaction checks.
+   A pair sentence would add nothing; PROMPT.md unchanged.
+3. **H92 / H93 (setting-record wording).** Decided. R23a: "In both cases, this SAVEPOINT record is now the record
+   that set the savepoint ... So a savepoint is set by the SAVEPOINT record that created it or that moved it most
+   recently." Only SAVEPOINT records set savepoints (a ROLLBACK keeps s "with the same position n" and does not
+   re-set it). R23b: "remove every other savepoint ... that was set by a SAVEPOINT record at a larger offset than the
+   record that set s. Only these offsets decide, not the positions ...". H92: s moved by @61 > t's @37 -> removed by
+   ROLLBACK t; R19b's second case ("a savepoint that an earlier ROLLBACK removed ... and that no SAVEPOINT record has
+   created again since then") gives NO_SAVEPOINT@81. H93: y set @37 > x's @27 -> removed by ROLLBACK x even with
+   equal positions; NO_SAVEPOINT@81. Both directions of the offset rule also appear (H91: t created after s's first
+   setting but before its move stays on ROLLBACK s). No ambiguity; PROMPT.md unchanged.
+
+Other wording checked while deriving (no issue): R19a "the transaction's write list" is per transaction (H70);
+"SAVEPOINT and ROLLBACK records are not writes and never count" (H75); a savepoint at position 0 is a real savepoint
+(H95); the type-7 record with a wrong checksum that ends at L is a torn tail like any other (H98). Nothing in scope
+depends on behaviour PROMPT.md does not state.
+
+## v3 regression check of H01-H69 (step 5)
+
+`work/scratch/p8v/regress.py` works on the byte dump only: it splits each input into frames by N (type u8 at p, N u16
+at p+1, next p = p + 5 + N, for every p with at least 3 bytes left, so every p that phase 1 can reach with R7 in play
+is listed; phase 1 itself walks the same chain and can only stop earlier). It flags any frame whose type byte is 6
+or 7, and any log with more than 8 frames of type 2 or 3 (those would then be grouped by their raw txn bytes).
+No checksum check, no rule logic, no outcome.
+
+- Type bytes 6/7: **none** in H01-H69 except H11 and H20, which v3 changed to type 8 and which are re-derived above.
+  (Type bytes found: 1, 2, 3, 4, 5, 8, 9 and 0; logs with L < 4 or a null input have no frames.)
+- Writes: the most type-2/3 frames in any of H01-H69 is 5 (H62), so no transaction can reach 9 writes and R19a never
+  fires. (Public P01-P03 checked the same way: no type 6/7, at most 5 writes.)
+- `git diff 3e061b6 HEAD -- task/PROMPT.md` (v2 -> v3) was read: every change concerns types 6/7, savepoints, the
+  write limit or their place in the orders/lists (R7, R13, R16a, R19, R19a, R19b, R20 "and no savepoints", R22/R23
+  "savepoints are discarded", R23a, R23b, R25, P2, P4, sections 1, 3, 4, 5.3, 6, 9, 10, Example 4). For a log with no
+  reachable type 6/7 frame and at most 8 writes per transaction these give the same result as v2.
+- Result: the v2 outcomes of H01-H69 (P7 audit) still hold under v3; no exception to re-derive.
+
+## v3 coverage (step 6)
+
+Each new or changed rule decides at least one test:
+
+| Rule | Tests it decides |
+|---|---|
+| R7 (types 6, 7 valid; 8 unknown) | H11, H20 (UNKNOWN_TYPE for 8); H78-H81 (types 6/7 pass phase 1, so R13 decides) |
+| R13 (SAVEPOINT/ROLLBACK N = 5) | H78 (SP N=4), H79 (SP N=6), H80 (RB N=6), H81 (RB N=4) |
+| R16a | H82 (SP 20), H83 (RB 7F), H86 (SP 7F); allowed edges 21/7E in H84 |
+| R19 (now also SAVEPOINT, ROLLBACK) | H87 (SAVEPOINT, never begun), H88 (ROLLBACK after COMMIT), H77 (PUT after COMMIT) |
+| R19a | H71, H72, H74 (TXN_TOO_LARGE); H70, H73, H75 (allowed side) |
+| R19b | H89, H92, H93, H101 (NO_SAVEPOINT) |
+| R20 (new transaction has no savepoints) | H101 (ROLLBACK with no SAVEPOINT anywhere: NO_SAVEPOINT); H89 (txn 2 starts with none) |
+| R22 (COMMIT; savepoints discarded) | H73, H84, H90, H91, H94, H95, H96 (COMMIT applies the write list left by ROLLBACKs). The "savepoints are discarded" clause cannot change any outcome: a closed id can never be used again (R17 for BEGIN, R19 for every other type), so no test can observe it. |
+| R23 (ABORT; savepoints discarded) | H97 (ABORT after SAVEPOINT/ROLLBACK applies nothing); discard clause unobservable as for R22 |
+| R23a | H91 (move on reuse), H95 (position 0), H90 (per transaction), H73/H75/P04 (position = list size) |
+| R23b | H91, H92, H93 (removal by setting offset), H94 (same savepoint twice), H96 (kept writes in order), H73/H74 (frees room) |
+| R25 (SP/RB add nothing to the lists) | H97 (aborted = [1] only), H90 (committed = [1, 2]) and every OK test with SP/RB |
+| P2 (new phase-2 codes listed) | H99 (NO_SAVEPOINT early vs CHECKSUM_MISMATCH later) |
+| P4 (new order and pair sentences) | H76 (R16 < R19a), H100 (R15 < R19a), H77 (R19 < R19a), H79 (R13 < R16a), H85 (R14 < R16a), H86 (R16a < R19), H83 (R16a < R19b), H88 (R19 < R19b) |
+
+Codes (hidden tests, counted from the literals after the additions): BAD_MAGIC 2, UNKNOWN_TYPE 4, RECORD_TOO_LARGE 5,
+CHECKSUM_MISMATCH 6, MALFORMED_PAYLOAD 13, BAD_TXN_ID 4, BAD_KEY 6, BAD_VALUE 4, DUPLICATE_TXN 3, TOO_MANY_OPEN 2,
+TXN_NOT_OPEN 6, TXN_TOO_LARGE 3, BAD_NAME 3, NO_SAVEPOINT 4; NullPointerException 1; OK 35. Total 101. All 14 Codes
+have >= 2 tests.
+
+New limits, both sides: MAX_WRITES 8 allowed H70, H73, H75 / 9th rejected H71, H72, H74 (and H76, H100 with a
+field error first); NAME_BYTE_MIN 21 allowed H84 / 20 rejected H82; NAME_BYTE_MAX 7E allowed H84 (SP and RB) / 7F
+rejected H83 (RB), H86 (SP); SAVEPOINT N = 5 allowed (every group K SP) / 4, 6 rejected H78, H79; ROLLBACK N = 5
+allowed / 4, 6 rejected H81, H80; highest type 7 allowed (group K) / 8 rejected H11, H20.
+
+Traps T18-T26 (work/notes/spec-change-v3.md section 5, read only after the derivations): T18 H70-H75; T19 H76
+(BAD_VALUE), **H100 (BAD_KEY, added: the trap names BAD_KEY/BAD_VALUE and only BAD_VALUE had a test)**, H77; T20 H91;
+T21 H91, H92, H94; T22 H93, H92; T23 H89, H90; T24 H78-H88; T25 H11, H20, H78-H81, H98, H99; T26 H97, H98 and the OK
+group K tests. All covered.
+
+### Tests added by the v3 audit (own derivations, written before the test code; L and bytes then matched the dump)
+
+| Test | Layout | Own derivation | Outcome | Status |
+|---|---|---|---|---|
+| H100 prec_bad_key_before_txn_too_large | magic; BEGIN1@4->13; PUT1 a..h@13..111 (->125); DEL1 key "x y" (78 20 79, k=3, N=8, size 13)@125->138, checksum 9D 21 (s1 3,3,11,11,11,11,12,15,135,167,33; s2 3,6,17,28,39,50,62,77,212,124,157; fletcher.py agrees); COMMIT1@138->147; L=147 | Phase 1 all intact. Phase 2: WL 8 after h. DEL @125: R13 N = 8 >= 5, k = 3, 8 = 5+3; R14 ok; R15 k in 1..32 but byte 20 < 21 -> BAD_KEY. R15 is a field check, before R19a (P4 "So the field checks (R13 to R16a) always come before the transaction checks (R17 to R19b)."). R19a first would give TXN_TOO_LARGE@125. | `ERR BAD_KEY@125` | verified (dump L=147, bytes @125 `03 00 08 00 00 00 01 03 78 20 79 9D 21`) |
+| H101 rb_without_any_savepoint_is_no_savepoint | magic; BEGIN1@4->13; PUT1 a=1@13->27; RB1 0x73@27->37 (CB 80); COMMIT1@37->46; L=46; no SAVEPOINT record in the log | Phase 1 all intact. Phase 2: BEGIN opens txn 1 "with an empty write list and no savepoints" (R20); WL [a=1]. RB @27: R13, R14, R16a ok; R19 open; R19b no savepoint 0x73 ("a name that no SAVEPOINT record of this transaction has set") -> NO_SAVEPOINT. Catches "unknown name = position 0" (would give OK state={}) and "ignore the ROLLBACK" (OK state a=1). | `ERR NO_SAVEPOINT@27` | verified (dump L=46, bytes @27 `07 00 05 00 00 00 01 73 CB 80`) |
+
+## v3 fixes and changes
+
+- Expected lines changed: **none** (33/33 agree).
+- Derivation comments changed: H78 (wording about the v2 H11 bytes; outcome unaffected).
+- Tests added: H100, H101 (group L, with full derivations and a checksum table in the group heading); file header
+  group list updated. Hidden tests: 101.
+- PROMPT.md: unchanged (no ambiguity found), so the paste file was not regenerated; checked anyway:
+  work/pilot/web/prompt_to_paste.txt is byte-equal to config.json wrapper + "\n\n" + PROMPT.md (29292 bytes; text
+  file only, no code in work/pilot/ opened or run).
