@@ -86,7 +86,7 @@ class HarnessCheck(unittest.TestCase):
         self.assertEqual(self.get("BYTES", "check_value"), m.group(1))
 
     def test_examples_byte_for_byte(self):
-        self.assertEqual(sorted(self.ex), ["1", "2", "3"])
+        self.assertEqual(sorted(self.ex), ["1", "2", "3", "4"])
         for n, (hexs, length) in self.ex.items():
             self.assertEqual(len(hexs.split()), length)
             self.assertEqual(self.get("BYTES", "example" + n), hexs)

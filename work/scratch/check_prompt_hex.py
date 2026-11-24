@@ -15,7 +15,7 @@ prompt = pathlib.Path(__file__).resolve().parents[2] / "wal-recovery/task/PROMPT
 text = prompt.read_text(encoding="utf-8")
 
 blocks = re.findall(r"^### Example (\d)[^\n]*\n(.*?)(?=^### Example|\Z)", text, re.S | re.M)
-expected = {"1": enc.ex1, "2": enc.ex2, "3": enc.ex3}
+expected = {"1": enc.ex1, "2": enc.ex2, "3": enc.ex3, "4": enc.ex4}
 ok = True
 for num, body in blocks:
     code = re.search(r"```\n(.*?)```", body, re.S).group(1)

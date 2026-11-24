@@ -6,6 +6,7 @@ A small key-value store writes every change to a write-ahead log (WAL) before it
 After a crash, the store is rebuilt from the log alone.
 Your job is to write `WalRecovery.recover(byte[] log)`, which reads such a log, checks it, and returns the recovered state.
 Recovery has two phases: phase 1 checks the header and the frame of every record to find where the valid log ends, and phase 2 replays the intact records, checks their contents, and applies the committed transactions in commit order.
+A transaction can set named savepoints and roll back to them, and it can hold at most 8 writes at a time.
 Many rules interact, so follow the stated check orders and precedence rules exactly.
 
 ## 2. What to submit
@@ -44,7 +45,8 @@ public final class WalRecovery {
     public enum Code {
         BAD_MAGIC, UNKNOWN_TYPE, RECORD_TOO_LARGE, CHECKSUM_MISMATCH,
         MALFORMED_PAYLOAD, BAD_TXN_ID, BAD_KEY, BAD_VALUE,
-        DUPLICATE_TXN, TOO_MANY_OPEN, TXN_NOT_OPEN
+        DUPLICATE_TXN, TOO_MANY_OPEN, TXN_NOT_OPEN,
+        TXN_TOO_LARGE, BAD_NAME, NO_SAVEPOINT
     }
 
     public static final class WalException extends Exception {
@@ -77,6 +79,7 @@ The names, signatures and types above must not change: the class, the method `re
 - "Payload byte j" of the record at p is byte p + 3 + j, with j starting at 0.
 - An intact record is a record that phase 1 accepts (R11).
 - A transaction is open from the moment its BEGIN record is accepted (R20) until its COMMIT or ABORT record is accepted (R22 or R23).
+- Each open transaction has a write list (R20, R21) and a set of savepoints (R23a). A write is one entry of a write list: one PUT or one DELETE. A savepoint has a name (one byte) and a position (a number of writes).
 - The empty result is a `Result` whose `state` is an empty map and whose `committed`, `aborted` and `incomplete` are empty lists. The rule that returns it gives `validLength` and `tornTail`.
 
 ## 5. Log format
@@ -105,9 +108,11 @@ The record size is 5 + N bytes. The record ends at p + 5 + N: this is the offset
 | 3 | DELETE | txn (u32), k (u8), key (k bytes) | 5 + k | 10 + k |
 | 4 | COMMIT | txn (u32) | 4 | 9 |
 | 5 | ABORT | txn (u32) | 4 | 9 |
+| 6 | SAVEPOINT | txn (u32), name (u8) | 5 | 10 |
+| 7 | ROLLBACK | txn (u32), name (u8) | 5 | 10 |
 
-- `txn` is the transaction id. `k` is the key length and `v` is the value length, both in bytes.
-- Positions in the payload: txn is payload bytes 0 to 3; k is payload byte 4; the key is payload bytes 5 to 4 + k; v is the u16 at payload byte 5 + k; the value is payload bytes 7 + k to 6 + k + v.
+- `txn` is the transaction id. `k` is the key length and `v` is the value length, both in bytes. `name` is the savepoint name: one byte. Two names are the same when their bytes are equal.
+- Positions in the payload: txn is payload bytes 0 to 3 (all types). PUT and DELETE: k is payload byte 4; the key is payload bytes 5 to 4 + k; v (PUT only) is the u16 at payload byte 5 + k; the value is payload bytes 7 + k to 6 + k + v. SAVEPOINT and ROLLBACK: name is payload byte 4.
 - The table shows well-formed payloads. Rule R13 says what happens when N does not match the layout.
 - In the result, each key and each value is a Java `String` with one `char` per byte, whose char code equals the byte value. A value with v = 0 is the empty string `""`.
 
@@ -148,6 +153,8 @@ So s2 = 28 = `1C` and s1 = 6 = `06`, and the stored checksum bytes are `1C 06`.
 | KEY_BYTE_MIN, KEY_BYTE_MAX | `0x21`, `0x7E` | allowed key bytes: printable ASCII without space |
 | VALUE_BYTE_MIN, VALUE_BYTE_MAX | `0x20`, `0x7E` | allowed value bytes: printable ASCII with space |
 | MAX_OPEN_TXNS | 4 | most transactions that can be open at the same time |
+| MAX_WRITES | 8 | most writes that one transaction's write list can hold at the same time (R19a) |
+| NAME_BYTE_MIN, NAME_BYTE_MAX | `0x21`, `0x7E` | allowed savepoint name bytes: printable ASCII without space |
 
 Every range includes both ends. A value has no length limit of its own; only N ≤ MAX_PAYLOAD limits it.
 
@@ -172,7 +179,7 @@ For each p, the checks are made in this order: R5, R6, R7, R8, R9, R10, R11. The
 
 - **R5.** If p = L, phase 1 ends with no torn tail: validLength = L and tornTail = false.
 - **R6.** If L − p is 1 or 2, there is a torn tail at p (R12), whatever those bytes are.
-- **R7.** If the type byte at p is not 1, 2, 3, 4 or 5, throw UNKNOWN_TYPE at p.
+- **R7.** If the type byte at p is not 1, 2, 3, 4, 5, 6 or 7, throw UNKNOWN_TYPE at p.
 - **R8.** If N (the u16 at p + 1) is greater than MAX_PAYLOAD, throw RECORD_TOO_LARGE at p. N is unsigned: for example, the bytes `80 00` are N = 32768, which is greater than MAX_PAYLOAD.
 - **R9.** If p + 5 + N > L (the record does not fit in the log), there is a torn tail at p (R12).
 - **R10.** If the stored checksum is wrong: when the record ends exactly at L (p + 5 + N = L), there is a torn tail at p (R12); when it ends before L (p + 5 + N < L), throw CHECKSUM_MISMATCH at p. This holds even when only 1 or 2 bytes follow the record.
@@ -183,24 +190,30 @@ For each p, the checks are made in this order: R5, R6, R7, R8, R9, R10, R11. The
 
 Phase 2 runs only when phase 1 ended without throwing (at R5 or with a torn tail). It processes the intact records one at a time, in log order. At the start, no transaction is open, no BEGIN record has been processed, and the state is an empty map.
 
-For each record at p, the checks are made in this order: R13, R14, R15, R16, R17, R18, R19. Each check names the record types it applies to; for other types it is skipped. The first check that fails decides the error. If no check fails, the action for the record's type (R20 to R23) is carried out, and phase 2 moves on to the next record. R13 to R16 are field checks (they look only at the record itself); R17 to R19 are transaction checks (they also look at the earlier records).
+For each record at p, the checks are made in this order: R13, R14, R15, R16, R16a, R17, R18, R19, R19a, R19b. Each check names the record types it applies to; for other types it is skipped. The first check that fails decides the error. If no check fails, the action for the record's type (R20 to R23b) is carried out, and phase 2 moves on to the next record. R13 to R16a are field checks (they look only at the record itself); R17 to R19b are transaction checks (they also look at the earlier records).
 
 - **R13.** Payload layout (all types). The payload is well-formed when these conditions hold, tested in this order:
   - BEGIN, COMMIT, ABORT: N = 4.
   - PUT: N ≥ 5; then, with k = payload byte 4, N ≥ 7 + k; then, with v = the u16 at payload byte 5 + k, N = 7 + k + v.
   - DELETE: N ≥ 5; then, with k = payload byte 4, N = 5 + k.
+  - SAVEPOINT, ROLLBACK: N = 5.
 
   If a condition fails, throw MALFORMED_PAYLOAD at p.
 - **R14.** Txn id (all types). If txn (the u32 at payload byte 0) is 0, throw BAD_TXN_ID at p.
 - **R15.** Key (PUT, DELETE). If k < MIN_KEY_LEN, or k > MAX_KEY_LEN, or any of the k key bytes is outside KEY_BYTE_MIN to KEY_BYTE_MAX, throw BAD_KEY at p.
 - **R16.** Value (PUT). If any of the v value bytes is outside VALUE_BYTE_MIN to VALUE_BYTE_MAX, throw BAD_VALUE at p.
+- **R16a.** Name (SAVEPOINT, ROLLBACK). If the name byte (payload byte 4) is outside NAME_BYTE_MIN to NAME_BYTE_MAX, throw BAD_NAME at p.
 - **R17.** Reused id (BEGIN). If an earlier BEGIN record in the log has the same txn, throw DUPLICATE_TXN at p. This applies whether that transaction is still open, committed or aborted.
 - **R18.** Open limit (BEGIN). If MAX_OPEN_TXNS transactions are open at this point (before this BEGIN record is applied), throw TOO_MANY_OPEN at p. A transaction whose COMMIT or ABORT record has already been processed is no longer open and does not count.
-- **R19.** Open check (PUT, DELETE, COMMIT, ABORT). If the transaction txn is not open, throw TXN_NOT_OPEN at p. This covers an id that never had a BEGIN record and an id whose transaction is already committed or aborted.
-- **R20.** BEGIN action: the transaction txn becomes open, with an empty write list.
+- **R19.** Open check (PUT, DELETE, COMMIT, ABORT, SAVEPOINT, ROLLBACK). If the transaction txn is not open, throw TXN_NOT_OPEN at p. This covers an id that never had a BEGIN record and an id whose transaction is already committed or aborted.
+- **R19a.** Write limit (PUT, DELETE). If the transaction's write list already holds MAX_WRITES writes at this point (before this record is applied), throw TXN_TOO_LARGE at p. Only the writes that are in the write list at this point count. Writes that a ROLLBACK has removed (R23b) no longer count, so a ROLLBACK frees room for new writes. Every PUT and every DELETE in the list counts as one write, also when it writes the same key as another write. SAVEPOINT and ROLLBACK records are not writes and never count.
+- **R19b.** Savepoint check (ROLLBACK). If the transaction has no savepoint with this name at this point, throw NO_SAVEPOINT at p. This covers a name that no SAVEPOINT record of this transaction has set, and a savepoint that an earlier ROLLBACK removed (R23b). Each transaction has its own savepoints: a savepoint of another transaction with the same name does not count.
+- **R20.** BEGIN action: the transaction txn becomes open, with an empty write list and no savepoints.
 - **R21.** PUT and DELETE action: append the write (PUT of key and value, or DELETE of key) to the end of the transaction's write list. The state does not change yet.
-- **R22.** COMMIT action: apply the transaction's writes to the state one by one, in write-list order. A PUT sets the key to the value, adding the key or replacing its old value. A DELETE removes the key; if the key is not in the state, it does nothing. Then append txn to `committed`; the transaction is no longer open.
-- **R23.** ABORT action: discard the transaction's writes without applying them. Append txn to `aborted`; the transaction is no longer open.
+- **R22.** COMMIT action: apply the transaction's writes to the state one by one, in write-list order. A PUT sets the key to the value, adding the key or replacing its old value. A DELETE removes the key; if the key is not in the state, it does nothing. Then append txn to `committed`; the transaction is no longer open, and its savepoints are discarded.
+- **R23.** ABORT action: discard the transaction's writes without applying them. Append txn to `aborted`; the transaction is no longer open, and its savepoints are discarded.
+- **R23a.** SAVEPOINT action: let n be the number of writes in the transaction's write list. If the transaction has no savepoint with this name, create one with position n. If it already has one, move it: its position becomes n, and from now on this SAVEPOINT record counts as the record that set it. A savepoint is set by the SAVEPOINT record that created it or that moved it most recently. Moving a savepoint does not change or remove any other savepoint. The write list and the state do not change.
+- **R23b.** ROLLBACK action: let s be the transaction's savepoint with this name (it exists, R19b) and n its position. The write list keeps its first n writes and loses all writes after them; these are the writes added after s was set. (The write list always holds at least n writes at this point.) Writes removed this way are never applied. Then remove every other savepoint of the transaction that was set by a SAVEPOINT record at a larger offset than the record that set s. The savepoint s itself stays, with the same position n, so a later ROLLBACK may name it again. The transaction stays open, and the state does not change.
 
 ### 7.4 Result
 
@@ -218,9 +231,9 @@ The tests compare `state` as a set of key-value pairs, and compare each list ele
 `recover` throws at most one exception: the first one reached by the rules in section 7. These consequences of the rule order are stated here so that no doubt is left:
 
 - **P1.** The header rules R1 to R4 come first. If one of them decides the outcome, no record is read.
-- **P2.** Phase 1 finishes before phase 2 starts. A phase-1 error anywhere in the log beats a phase-2 error anywhere in the log, even when the phase-2 problem is in an earlier record. The phase-1 errors are UNKNOWN_TYPE, RECORD_TOO_LARGE and CHECKSUM_MISMATCH. The phase-2 errors are MALFORMED_PAYLOAD, BAD_TXN_ID, BAD_KEY, BAD_VALUE, DUPLICATE_TXN, TOO_MANY_OPEN and TXN_NOT_OPEN.
+- **P2.** Phase 1 finishes before phase 2 starts. A phase-1 error anywhere in the log beats a phase-2 error anywhere in the log, even when the phase-2 problem is in an earlier record. The phase-1 errors are UNKNOWN_TYPE, RECORD_TOO_LARGE and CHECKSUM_MISMATCH. The phase-2 errors are MALFORMED_PAYLOAD, BAD_TXN_ID, BAD_KEY, BAD_VALUE, BAD_NAME, DUPLICATE_TXN, TOO_MANY_OPEN, TXN_NOT_OPEN, TXN_TOO_LARGE and NO_SAVEPOINT.
 - **P3.** Phase 1 stops at the first p, in log order, where it throws or finds a torn tail. Nothing after that point is checked by phase 1.
-- **P4.** In phase 2, the first record in log order that fails a check decides the error. Within one record, the first failing check in the order R13, R14, R15, R16, R17, R18, R19 decides the code, so the field checks (R13 to R16) always come before the transaction checks (R17 to R19), and for a BEGIN record DUPLICATE_TXN (R17) comes before TOO_MANY_OPEN (R18).
+- **P4.** In phase 2, the first record in log order that fails a check decides the error. Within one record, the first failing check in the order R13, R14, R15, R16, R16a, R17, R18, R19, R19a, R19b decides the code. So the field checks (R13 to R16a) always come before the transaction checks (R17 to R19b). For a BEGIN record, DUPLICATE_TXN (R17) comes before TOO_MANY_OPEN (R18). For a PUT or DELETE record, TXN_NOT_OPEN (R19) comes before TXN_TOO_LARGE (R19a). For a ROLLBACK record, TXN_NOT_OPEN (R19) comes before NO_SAVEPOINT (R19b).
 - **P5.** Bytes in the torn tail are never checked by phase 2, whatever they contain. A torn tail does not prevent errors: if an intact record before the torn tail fails a phase-2 check, `recover` throws that error.
 
 ## 9. Error table
@@ -233,16 +246,19 @@ This table is a summary of sections 7 and 8. A row applies only when no earlier 
 |---|---|---|---|
 | `NullPointerException` | `log` is null | R1 | none |
 | BAD_MAGIC | L is 1 to 3 and the bytes are not the first L bytes of MAGIC; or L ≥ 4 and bytes 0 to 3 are not MAGIC | R3, R4 | 0 |
-| UNKNOWN_TYPE | at least 3 bytes remain at p and the type byte is not 1 to 5 | R7 | p |
-| RECORD_TOO_LARGE | at least 3 bytes remain at p, the type byte is 1 to 5, and N > 1024 | R8 | p |
+| UNKNOWN_TYPE | at least 3 bytes remain at p and the type byte is not 1 to 7 | R7 | p |
+| RECORD_TOO_LARGE | at least 3 bytes remain at p, the type byte is 1 to 7, and N > 1024 | R8 | p |
 | CHECKSUM_MISMATCH | the record fits, its stored checksum is wrong, and it ends before L | R10 | p |
 | MALFORMED_PAYLOAD | N does not match the payload layout of the record type | R13 | p |
 | BAD_TXN_ID | txn is 0 | R14 | p |
 | BAD_KEY | k is 0, k is more than 32, or a key byte is outside `0x21` to `0x7E` | R15 | p |
 | BAD_VALUE | a value byte is outside `0x20` to `0x7E` | R16 | p |
+| BAD_NAME | SAVEPOINT or ROLLBACK whose name byte is outside `0x21` to `0x7E` | R16a | p |
 | DUPLICATE_TXN | BEGIN with a txn used by an earlier BEGIN record | R17 | p |
 | TOO_MANY_OPEN | BEGIN while 4 transactions are open | R18 | p |
-| TXN_NOT_OPEN | PUT, DELETE, COMMIT or ABORT for a transaction that is not open | R19 | p |
+| TXN_NOT_OPEN | PUT, DELETE, COMMIT, ABORT, SAVEPOINT or ROLLBACK for a transaction that is not open | R19 | p |
+| TXN_TOO_LARGE | PUT or DELETE while the transaction's write list holds 8 writes | R19a | p |
+| NO_SAVEPOINT | ROLLBACK with a name for which the transaction has no savepoint | R19b | p |
 
 ## 10. Not errors
 
@@ -257,6 +273,12 @@ These cases are valid and must not throw:
 7. A transaction that is never committed or aborted. Its txn is in `incomplete`, and its writes are never applied.
 8. Several transactions that write the same key, or one transaction that writes the same key more than once. The writes are applied at commit time in the order of R22, so the write applied last decides the final value.
 9. A torn tail whose bytes would break a rule if they were checked (P5).
+10. A transaction whose write list holds exactly MAX_WRITES writes. Also a PUT or DELETE after the transaction has had more than MAX_WRITES PUT and DELETE records in total, when ROLLBACK records have removed enough writes that the write list holds fewer than MAX_WRITES writes at that point: only the writes in the write list count (R19a).
+11. A SAVEPOINT or ROLLBACK record while the write list holds MAX_WRITES writes. They are not writes (R19a).
+12. A SAVEPOINT with a name for which the transaction already has a savepoint. It moves that savepoint (R23a).
+13. A ROLLBACK that removes no writes. Also two or more ROLLBACK records that name the same savepoint: a ROLLBACK does not remove the savepoint it names (R23b).
+14. The same savepoint name in two different transactions. Each transaction has its own savepoints (R19b).
+15. A savepoint that no ROLLBACK ever names. It has no effect on the result.
 
 ## 11. Worked examples
 
@@ -344,3 +366,36 @@ L = 36
 Expected outcome: `recover` throws a `WalException` with `code()` = CHECKSUM_MISMATCH and `offset()` = 13 (message `CHECKSUM_MISMATCH@13`).
 
 Why: the record at 4 is intact. For the record at 13, N = 9 and it ends at 27. The checksum of its bytes `02 00 09 00 00 00 01 01 6B 00 01 77` is s2 = `A4`, s1 = `F0`, but the stored bytes are `A3 EF`. The record ends before L = 36, so R10 throws CHECKSUM_MISMATCH at 13.
+
+### Example 4: savepoint and rollback
+
+Story: transaction 1 writes "a", sets the savepoint named `73` ("s"), writes "b" and deletes "a", rolls back to the savepoint, writes "c" and commits.
+
+```
+offset  bytes                                       record
+     0  57 41 4C 31                                 header
+     4  01 00 04 00 00 00 01 1C 06                  BEGIN txn 1
+    13  02 00 09 00 00 00 01 01 61 00 01 31 36 A0   PUT txn 1, "a" = "1"
+    27  06 00 05 00 00 00 01 73 C3 7F               SAVEPOINT txn 1, name 0x73 ("s")
+    37  02 00 09 00 00 00 01 01 62 00 01 32 3B A2   PUT txn 1, "b" = "2"
+    51  03 00 06 00 00 00 01 01 61 AB 6C            DELETE txn 1, "a"
+    62  07 00 05 00 00 00 01 73 CB 80               ROLLBACK txn 1, name 0x73 ("s")
+    72  02 00 09 00 00 00 01 01 63 00 01 33 40 A4   PUT txn 1, "c" = "3"
+    86  04 00 04 00 00 00 01 31 09                  COMMIT txn 1
+L = 95
+```
+
+The SAVEPOINT at 27, split into fields: type `06`, N `00 05`, txn `00 00 00 01`, name `73`, checksum `C3 7F`.
+
+Expected result:
+
+```
+state       = {"a"="1", "c"="3"}
+committed   = [1]
+aborted     = []
+incomplete  = []
+validLength = 95
+tornTail    = false
+```
+
+Why: all 8 records are intact, and phase 1 ends at p = 95 = L (R5). The SAVEPOINT at 27 creates the savepoint `73` with position 1, because the write list then holds one write, PUT a = "1" (R23a). The ROLLBACK at 62 keeps that first write and removes the PUT of "b" and the DELETE of "a" (R23b); txn 1 stays open. The PUT at 72 appends c = "3", so the COMMIT at 86 applies PUT a = "1" and then PUT c = "3" (R22).

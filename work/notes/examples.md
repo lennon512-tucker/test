@@ -2,6 +2,14 @@
 
 Source of truth: `wal-recovery/task/PROMPT.md` (DRAFT v2 (audited); written against DRAFT v1). Rule numbers below are the R/P numbers in PROMPT.md.
 
+P8 hardening (2026-11-24, DRAFT v3): L1 (MAX_WRITES = 8, TXN_TOO_LARGE) and L2 (SAVEPOINT type 6, ROLLBACK type 7,
+BAD_NAME, NO_SAVEPOINT) were added; see `work/notes/spec-change-v3.md`. No old rule number moved; new rules are
+R16a, R19a, R19b, R23a, R23b. Examples 1-3 are unaffected: they contain only types 1-5 and at most 2 writes per
+transaction, so R7 still accepts every record, R19a never fires (at most 2 < 8 writes), and R16a/R19b/R23a/R23b
+apply to no record. Their bytes and expected lines are unchanged. Example 4 (savepoint and rollback) was added; its
+bytes come from `encode_examples.py` (ex4, encode only), `check_prompt_hex.py` confirms the PROMPT.md hex, and every
+checksum and the outcome were re-derived by hand below (section 0.6 and "Example 4").
+
 P2 audit (2026-11-24): the P2 edits changed wording only; rule numbers (R1-R27, P1-P5), example bytes and expected
 outcomes are unchanged. All three outcomes were re-derived by hand independently, and every record's hex, offset and
 checksum was re-checked with the separate script `work/scratch/p2_verify_examples.py`. No changes needed below.
@@ -18,6 +26,7 @@ Canonical lines for the public tests (PLAN.md §3.2), derived below:
 | 1 | `OK state={"a"="1", "b"="x"} committed=[2, 1] aborted=[3] incomplete=[4] validLength=134 tornTail=false` |
 | 2 | `OK state={"x"="hello"} committed=[1] aborted=[] incomplete=[2] validLength=65 tornTail=true` |
 | 3 | `ERR CHECKSUM_MISMATCH@13` |
+| 4 | `OK state={"a"="1", "c"="3"} committed=[1] aborted=[] incomplete=[] validLength=95 tornTail=false` |
 
 ---
 
@@ -107,6 +116,35 @@ s2 = 2,4,15,26,37,48,59+t,71+2t,83+3t+K,95+4t+2K,108+5t+3K,121+6t+4K+V (all mod 
 
 DELETE 4 "a", covered `03 00 06 00 00 00 04 01 61` (dec 3,0,6,0,0,0,4,1,97):
 s1 = 3,3,9,9,9,9,13,14,111; s2 = 3,6,15,24,33,42,55,69,180 → s2 = 180 = 0xB4, s1 = 111 = 0x6F → `B4 6F`. ✓
+
+### 0.6 Example 4 checksums by hand (DRAFT v3)
+
+SAVEPOINT txn 1 name 0x73, full step table. Covered bytes: `06 00 05 00 00 00 01 73` (8 = 3 + N bytes, N = 5).
+
+| b (hex) | 06 | 00 | 05 | 00 | 00 | 00 | 01 | 73 |
+|---|---|---|---|---|---|---|---|---|
+| b (dec) | 6 | 0 | 5 | 0 | 0 | 0 | 1 | 115 |
+| s1 | 6 | 6 | 11 | 11 | 11 | 11 | 12 | 127 |
+| s2 | 6 | 12 | 23 | 34 | 45 | 56 | 68 | 195 |
+
+s2 = 195 = 0xC3, s1 = 127 = 0x7F → stored `C3 7F`. Matches the encoder. ✓
+
+ROLLBACK txn 1 name 0x73, covered `07 00 05 00 00 00 01 73` (dec 7,0,5,0,0,0,1,115):
+s1 = 7,7,12,12,12,12,13,128; s2 = 7,14,26,38,50,62,75,203 → s2 = 203 = 0xCB, s1 = 128 = 0x80 → `CB 80`. ✓
+
+PUT 1 "b"="2", covered `02 00 09 00 00 00 01 01 62 00 01 32` (dec 2,0,9,0,0,0,1,1,98,0,1,50):
+s1 = 2,2,11,11,11,11,12,13,111,111,112,162; s2 = 2,4,15,26,37,48,60,73,184,295−255 = 40,152,314−255 = 59
+→ s2 = 59 = 0x3B, s1 = 162 = 0xA2 → `3B A2`. Closed form (0.5) with t = 1, K = 98, V = 50: s1 = 13 + 1 + 98 + 50
+= 162, s2 = 121 + 6 + 392 + 50 = 569 − 510 = 59. ✓
+
+PUT 1 "c"="3", covered `02 00 09 00 00 00 01 01 63 00 01 33` (dec 2,0,9,0,0,0,1,1,99,0,1,51):
+s1 = 2,2,11,11,11,11,12,13,112,112,113,164; s2 = 2,4,15,26,37,48,60,73,185,297−255 = 42,155,319−255 = 64
+→ s2 = 64 = 0x40, s1 = 164 = 0xA4 → `40 A4`. ✓
+
+DELETE 1 "a", covered `03 00 06 00 00 00 01 01 61` (dec 3,0,6,0,0,0,1,1,97):
+s1 = 3,3,9,9,9,9,10,11,108; s2 = 3,6,15,24,33,42,52,63,171 → s2 = 171 = 0xAB, s1 = 108 = 0x6C → `AB 6C`. ✓
+
+BEGIN 1 `1C 06`, PUT 1 "a"="1" `36 A0` and COMMIT 1 `31 09` are in 0.1 and 0.5.
 
 ---
 
@@ -268,3 +306,82 @@ R1–R3 do not apply; R4: bytes 0–3 are MAGIC. p = 4.
 WalException, code() = CHECKSUM_MISMATCH, offset() = 13.
 
 Canonical: `ERR CHECKSUM_MISMATCH@13`
+
+
+---
+
+## Example 4: savepoint and rollback (DRAFT v3)
+
+L = 95.
+
+| # | Offset | Size | Record | N | Ends at |
+|---|---|---|---|---|---|
+| H | 0 | 4 | header `57 41 4C 31` | | 4 |
+| 1 | 4 | 9 | BEGIN 1 | 4 | 13 |
+| 2 | 13 | 14 | PUT 1 "a"="1" | 9 | 27 |
+| 3 | 27 | 10 | SAVEPOINT 1 name 0x73 | 5 | 37 |
+| 4 | 37 | 14 | PUT 1 "b"="2" | 9 | 51 |
+| 5 | 51 | 11 | DELETE 1 "a" | 6 | 62 |
+| 6 | 62 | 10 | ROLLBACK 1 name 0x73 | 5 | 72 |
+| 7 | 72 | 14 | PUT 1 "c"="3" | 9 | 86 |
+| 8 | 86 | 9 | COMMIT 1 | 4 | 95 |
+
+Sizes: SAVEPOINT/ROLLBACK N = 5 (txn 4 + name 1), size 10. Sum: 4 + 9 + 14 + 10 + 14 + 11 + 10 + 14 + 9 = 95 = L. ✓
+
+### Header
+R1 not null; R2 L ≠ 0; R3 L not 1–3; R4 bytes 0–3 are MAGIC. p = 4.
+
+### Phase 1 (R5 → R11 at each p)
+
+| p | R5 p = L? | R6 L − p | R7 type (1..7) | R8 N ≤ 1024? | R9 p+5+N ≤ L? | R10 checksum | R11 next p |
+|---|---|---|---|---|---|---|---|
+| 4 | no | 91 | 01 ok | 4 ok | 13 ≤ 95 | `1C 06` correct | 13 |
+| 13 | no | 82 | 02 ok | 9 ok | 27 ≤ 95 | `36 A0` correct | 27 |
+| 27 | no | 68 | 06 ok | 5 ok | 37 ≤ 95 | `C3 7F` correct | 37 |
+| 37 | no | 58 | 02 ok | 9 ok | 51 ≤ 95 | `3B A2` correct | 51 |
+| 51 | no | 44 | 03 ok | 6 ok | 62 ≤ 95 | `AB 6C` correct | 62 |
+| 62 | no | 33 | 07 ok | 5 ok | 72 ≤ 95 | `CB 80` correct | 72 |
+| 72 | no | 23 | 02 ok | 9 ok | 86 ≤ 95 | `40 A4` correct | 86 |
+| 86 | no | 9 | 04 ok | 4 ok | 95 ≤ 95 | `31 09` correct | 95 |
+| 95 | **yes** | | | | | | |
+
+R5 at p = 95: validLength = 95, tornTail = false. 8 intact records. (Under DRAFT v2, R7 would have thrown
+UNKNOWN_TYPE at 27; under v3 types 6 and 7 are valid.)
+
+### Phase 2 (R13, R14, R15, R16, R16a, R17, R18, R19, R19a, R19b, then the action)
+
+Start: open = {}, BEGIN ids seen = {}, state = {}.
+
+1. p = 4, BEGIN 1. R13 N = 4 ✓. R14 txn 1 ≠ 0 ✓. R15, R16, R16a skipped. R17 1 not seen ✓. R18 0 open < 4 ✓.
+   R19, R19a, R19b skipped. R20: open {1}, writes(1) = [], savepoints(1) = {}.
+2. p = 13, PUT 1 "a"="1". R13: N = 9 ≥ 5; k = 1, 8 ≤ 9; v = `00 01` = 1, 7 + 1 + 1 = 9 = N ✓. R14 ✓. R15 key `61`
+   ✓. R16 value `31` ✓. R16a skipped. R19: 1 open ✓. R19a: write list holds 0 writes, not 8 ✓. R19b skipped.
+   R21: writes(1) = [PUT a="1"].
+3. p = 27, SAVEPOINT 1 name 0x73. R13: N = 5 ✓. R14: txn = payload bytes 0–3 `00 00 00 01` = 1 ✓. R15, R16
+   skipped. R16a: name = payload byte 4 = `73` in 0x21..0x7E ✓. R17, R18 skipped. R19: 1 open ✓. R19a skipped
+   (not PUT/DELETE). R19b skipped (not ROLLBACK). R23a: n = 1 (one write in the list); no savepoint 0x73 yet →
+   create it with position 1, set by the record at 27. savepoints(1) = {0x73: position 1, set @27}. Write list
+   unchanged.
+4. p = 37, PUT 1 "b"="2". R13 ✓ (N = 9, k = 1, v = 1). R14 ✓. R15 key `62` ✓. R16 value `32` ✓. R19 ✓. R19a: 1
+   write, not 8 ✓. R21: writes(1) = [PUT a="1", PUT b="2"].
+5. p = 51, DELETE 1 "a". R13: N = 6 ≥ 5; k = 1, 5 + 1 = 6 = N ✓. R14 ✓. R15 key `61` ✓. R19 ✓. R19a: 2 writes,
+   not 8 ✓. R21: writes(1) = [PUT a="1", PUT b="2", DELETE a].
+6. p = 62, ROLLBACK 1 name 0x73. R13: N = 5 ✓. R14: 1 ✓. R16a: `73` ✓. R19: 1 open ✓. R19a skipped. R19b:
+   savepoint 0x73 exists in txn 1 ✓. R23b: s = 0x73, n = 1. The write list keeps its first 1 write:
+   writes(1) = [PUT a="1"]; PUT b="2" and DELETE a are removed and never applied. Other savepoints set by a
+   SAVEPOINT record at an offset > 27: none (txn 1 has no other savepoint). 0x73 stays with position 1. Txn 1
+   stays open; state unchanged ({}).
+7. p = 72, PUT 1 "c"="3". R13 ✓. R14 ✓. R15 key `63` ✓. R16 value `33` ✓. R19 ✓. R19a: 1 write, not 8 ✓. R21:
+   writes(1) = [PUT a="1", PUT c="3"].
+8. p = 86, COMMIT 1. R13 N = 4 ✓. R14 ✓. R19: 1 open ✓. R22: apply PUT a="1" → {a=1}; apply PUT c="3" →
+   {a=1, c=3}. committed = [1]. Txn 1 no longer open; its savepoints are discarded. open = {}.
+
+No check failed.
+
+### Result (R24–R27)
+- state = {"a"="1", "c"="3"} (R24)
+- committed = [1], aborted = [] (R25)
+- incomplete = [] (R26: no transaction open)
+- validLength = 95, tornTail = false (R27, from R5)
+
+Canonical: `OK state={"a"="1", "c"="3"} committed=[1] aborted=[] incomplete=[] validLength=95 tornTail=false`

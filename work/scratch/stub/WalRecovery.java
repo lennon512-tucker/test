@@ -20,7 +20,8 @@ public final class WalRecovery {
     public enum Code {
         BAD_MAGIC, UNKNOWN_TYPE, RECORD_TOO_LARGE, CHECKSUM_MISMATCH,
         MALFORMED_PAYLOAD, BAD_TXN_ID, BAD_KEY, BAD_VALUE,
-        DUPLICATE_TXN, TOO_MANY_OPEN, TXN_NOT_OPEN
+        DUPLICATE_TXN, TOO_MANY_OPEN, TXN_NOT_OPEN,
+        TXN_TOO_LARGE, BAD_NAME, NO_SAVEPOINT
     }
 
     public static final class WalException extends Exception {

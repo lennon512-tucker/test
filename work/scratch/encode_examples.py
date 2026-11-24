@@ -51,6 +51,14 @@ def delete(t, key):
     return frame(3, u32(t) + bytes([len(k)]) + k)
 
 
+def savepoint(t, name):
+    return frame(6, u32(t) + bytes([name]))
+
+
+def rollback(t, name):
+    return frame(7, u32(t) + bytes([name]))
+
+
 def hx(bs):
     return " ".join(f"{b:02X}" for b in bs)
 
@@ -116,3 +124,17 @@ show("Example 3", ex3)
 print("Example 3 PUT: stored checksum", hx(good_put[-2:]),
       "; checksum of damaged bytes (s2 s1):",
       "%02X %02X" % tuple(reversed(fletcher16(bytes(damaged[:-2])))))
+
+# Example 4 (P8 hardening, v3): one savepoint, one rollback, then commit.
+ex4 = [
+    ("header", MAGIC),
+    ("BEGIN txn 1", begin(1)),
+    ('PUT txn 1 "a"="1"', put(1, "a", "1")),
+    ('SAVEPOINT txn 1 name 0x73', savepoint(1, 0x73)),
+    ('PUT txn 1 "b"="2"', put(1, "b", "2")),
+    ('DELETE txn 1 "a"', delete(1, "a")),
+    ('ROLLBACK txn 1 name 0x73', rollback(1, 0x73)),
+    ('PUT txn 1 "c"="3"', put(1, "c", "3")),
+    ("COMMIT txn 1", commit(1)),
+]
+show("Example 4", ex4)

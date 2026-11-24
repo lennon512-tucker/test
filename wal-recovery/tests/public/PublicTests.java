@@ -72,6 +72,34 @@ public final class PublicTests {
               + " 04 00 04 00 00 00 01 31 09"),
                 "ERR CHECKSUM_MISMATCH@13"));
 
+        // P04 Example 4: savepoint and rollback. R5, R19a, R21, R22, R23a, R23b.
+        // Derivation (bytes and outcome are PROMPT.md section 11, Example 4):
+        //   1. Header ok (R4). 8 records: BEGIN 1 @4 (ends 13), PUT 1 a=1 @13 (N = 9, ends 27, 36 A0),
+        //      SAVEPOINT 1 name 73 @27 (type 6, N = 5, ends 37; 06 00 05 00 00 00 01 73:
+        //      s1 6,6,11,11,11,11,12,127; s2 6,12,23,34,45,56,68,195 -> C3 7F), PUT 1 b=2 @37
+        //      (ends 51, 3B A2), DELETE 1 a @51 (N = 6, ends 62, AB 6C), ROLLBACK 1 name 73 @62
+        //      (type 7, N = 5, ends 72, CB 80), PUT 1 c=3 @72 (ends 86, 40 A4), COMMIT 1 @86
+        //      (ends 95, 31 09). Each: type 1-7, N <= 1024, fits, correct checksum -> intact (R11).
+        //   2. p = 95 = L (R5): validLength = 95, tornTail = false.
+        //   3. Phase 2: every record passes R13-R19b (SAVEPOINT/ROLLBACK N = 5, name 73 in 21..7E,
+        //      txn 1 open, at most 2 writes in the list so R19a never fires, savepoint 73 exists at
+        //      the ROLLBACK). writes(1) = [PUT a=1]; SAVEPOINT 73 -> position 1 (R23a);
+        //      writes = [PUT a=1, PUT b=2, DELETE a]; ROLLBACK 73 keeps the first 1 write ->
+        //      [PUT a=1] (R23b), txn 1 stays open; PUT c=3 -> [PUT a=1, PUT c=3]; COMMIT applies
+        //      a=1 then c=3 (R22). committed [1], aborted [], incomplete [] (R25, R26).
+        // Expected: OK state={"a"="1", "c"="3"} committed=[1] aborted=[] incomplete=[] validLength=95 tornTail=false
+        c.add(TestCase.of("P04", "example4_savepoint_rollback", "R5,R19a,R21,R22,R23a,R23b", Hex.bytes(
+                "57 41 4C 31"
+              + " 01 00 04 00 00 00 01 1C 06"
+              + " 02 00 09 00 00 00 01 01 61 00 01 31 36 A0"
+              + " 06 00 05 00 00 00 01 73 C3 7F"
+              + " 02 00 09 00 00 00 01 01 62 00 01 32 3B A2"
+              + " 03 00 06 00 00 00 01 01 61 AB 6C"
+              + " 07 00 05 00 00 00 01 73 CB 80"
+              + " 02 00 09 00 00 00 01 01 63 00 01 33 40 A4"
+              + " 04 00 04 00 00 00 01 31 09"),
+                "OK state={\"a\"=\"1\", \"c\"=\"3\"} committed=[1] aborted=[] incomplete=[] validLength=95 tornTail=false"));
+
         return c;
     }
 }

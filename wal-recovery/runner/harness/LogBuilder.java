@@ -60,6 +60,12 @@ public final class LogBuilder {
 
     public LogBuilder abort(long txn) { return record(5, u32(txn)); }
 
+    /** SAVEPOINT (type 6): txn (4 bytes), name (1 byte, any value 0 to 255). */
+    public LogBuilder savepoint(long txn, int name) { return record(6, txnAndName(txn, name)); }
+
+    /** ROLLBACK (type 7): txn (4 bytes), name (1 byte, any value 0 to 255). */
+    public LogBuilder rollback(long txn, int name) { return record(7, txnAndName(txn, name)); }
+
     /** A record with the true payload length and the correct checksum. */
     public LogBuilder record(int type, byte[] payload) {
         if (payload.length > 65535) throw new IllegalArgumentException("payload longer than 65535 bytes");
@@ -143,6 +149,14 @@ public final class LogBuilder {
     private static byte[] u32(long v) {
         if (v < 0 || v > 4294967295L) throw new IllegalArgumentException("txn id out of u32 range: " + v);
         return new byte[] {(byte) (v >> 24), (byte) (v >> 16), (byte) (v >> 8), (byte) v};
+    }
+
+    private static byte[] txnAndName(long txn, int name) {
+        if (name < 0 || name > 255) throw new IllegalArgumentException("name out of byte range: " + name);
+        byte[] p = new byte[5];
+        System.arraycopy(u32(txn), 0, p, 0, 4);
+        p[4] = (byte) name;
+        return p;
     }
 
     private static byte[] latin1(String s) {

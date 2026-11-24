@@ -39,6 +39,13 @@ public final class HarnessCheck {
                 .begin(1)
                 .frame(2, 9, Hex.bytes("00 00 00 01 01 6B 00 01 77"), 0xA3EF)
                 .commit(1).build()));
+        System.out.println("BYTES example4 " + Hex.format(LogBuilder.wal()
+                .begin(1).put(1, "a", "1")
+                .savepoint(1, 0x73)
+                .put(1, "b", "2").del(1, "a")
+                .rollback(1, 0x73)
+                .put(1, "c", "3")
+                .commit(1).build()));
 
         // The public tests' inputs
         for (TestCase tc : PublicTests.cases()) {
@@ -56,6 +63,14 @@ public final class HarnessCheck {
         eq("frame_declared_length", "09 00 07 AA BB CD EF",
                 Hex.format(LogBuilder.raw().frame(9, 7, new byte[] {(byte) 0xAA, (byte) 0xBB}, 0xCDEF).build()));
         eq("bytes", "00 FF 80", Hex.format(LogBuilder.raw().bytes(0, 255, 128).build()));
+        // SAVEPOINT 2 name 0x20, by hand: 06 00 05 00 00 00 02 20; s1 6,6,11,11,11,11,13,45;
+        // s2 6,12,23,34,45,56,69,114 -> s2 114 = 72, s1 45 = 2D
+        eq("savepoint_record", "06 00 05 00 00 00 02 20 72 2D",
+                Hex.format(LogBuilder.raw().savepoint(2, 0x20).build()));
+        // ROLLBACK 2 name 0xFF, by hand: 07 00 05 00 00 00 02 FF; s1 7,7,12,12,12,12,14,269-255=14;
+        // s2 7,14,26,38,50,62,76,90 -> s2 90 = 5A, s1 14 = 0E
+        eq("rollback_record", "07 00 05 00 00 00 02 FF 5A 0E",
+                Hex.format(LogBuilder.raw().rollback(2, 0xFF).build()));
         LogBuilder lb = LogBuilder.wal().begin(1);
         byte[] first = lb.build();
         lb.commit(1);
