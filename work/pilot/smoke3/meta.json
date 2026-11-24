@@ -1,0 +1,9 @@
+{
+  "http_status": 429,
+  "retries": 0,
+  "error": null,
+  "seconds": 0.5,
+  "date": "2026-11-24",
+  "probe_text": "Reply with OK.",
+  "model": "gemini-3.1-pro-preview"
+}
