@@ -1,231 +1,116 @@
-# How to run the Gemini tests yourself
+# How to run the Gemini tests in the Gemini web app
 
-Written 2026-11-24 for Sam Joe. Follow the stages in order.
+Updated 2026-11-24 for Sam Joe. You run the Gemini attempts by hand in the Gemini web app (gemini.google.com). Claude does the testing and judging.
 
-**Where to type commands:** a terminal in VS Code (**Terminal → New Terminal**). Before each stage, run:
+---
+
+## Before the first attempt: set up once
+
+1. **Check that the client allows the web app.** Our plan (PLAN.md §1) quotes the client's PDF §4 as "Gemini API, default settings". If the PDF says "API", ask Ivan whether the web app is acceptable, and keep his answer.
+2. **Turn off memory.** In Gemini **Settings**, turn off the options that let Gemini use your past chats or saved info ("Personal context", "Saved info", or a similar name). Otherwise your earlier chats (SQL engine, BM25) can affect the answers. A **Temporary chat** also works if your account offers one.
+3. **Choose the model.** Open the model picker (it shows "Hydrogen" now) and choose the newest **Pro** model. Write down its exact name **as shown**. If you can't tell which entry is Pro, take a screenshot of the open list and send it to Claude.
+4. **Choose Chat mode**, not Task. Task mode lets Gemini work like an agent and run code, which is a different test.
+5. **Don't add files or tools.** Paste text only. Don't attach files, and don't turn on Canvas, Deep Research or code execution.
+
+---
+
+## Rules for every attempt (the client checks these)
+
+- **One attempt = one new chat.** Click **New chat** before every attempt.
+- **Paste the exact text, unchanged.** Open `work/pilot/web/prompt_to_paste.txt` in VS Code, press **Ctrl+A**, **Ctrl+C**, then paste into Gemini with **Ctrl+V** and press Enter. Don't type anything before or after it. This file is exactly what the API would have sent: the wrapper sentence, a blank line, then the task.
+- **Send once and wait.** Don't reply, don't press **Regenerate**, don't pick another draft, and don't ask follow-up questions.
+- **Never re-roll.** A bad answer, an answer with no code, or an answer that stops halfway all count. Repeat an attempt only if Gemini gave **no answer at all** (an error message such as "Something went wrong"). Write down that you repeated it, and why.
+- **Never edit the answer** after saving it, not even to fix an obvious typo.
+- **Never show Gemini the tests**, the results or anything from this folder except `prompt_to_paste.txt`.
+
+---
+
+## Saving one attempt
+
+The folders are ready: `work/pilot/web/round1/gemini_run_1` to `gemini_run_5`.
+
+1. When Gemini has finished, click the **copy** button under the answer (the two-squares icon). Don't select the text with the mouse: the copy button keeps the ```` ```java ```` code fences, which the runner needs to find the code.
+2. In VS Code, choose **File → New Text File**, press **Ctrl+V**, then **File → Save As…** and type `/root/Documents/test/work/pilot/web/round1/gemini_run_1/answer.txt` (use `gemini_run_2` for attempt 2, and so on).
+3. Take a **screenshot** that shows the model name and the start of the answer. Save it in the same folder as `screenshot.png`.
+4. Click **New chat** and do the next attempt.
+
+If an answer is so long that Gemini shows "Show more" or splits it, expand it fully before you copy.
+
+---
+
+## Stage 1: one smoke attempt (optional, recommended)
+
+Do **attempt 1 of round 1** first, save it, then run this test (see "Testing the answers" below). If the code is found and the tests run, do attempts 2–5. This catches a copying problem before you've spent all 5 attempts.
+
+---
+
+## Testing the answers (you run one command, or ask Claude)
+
+Open a terminal in VS Code (**Terminal → New Terminal**) and run (put the exact model name in quotes, and use today's date):
 
 ```
 cd /root/Documents/test/wal-recovery
+python3 runner/run.py --import-web ../work/pilot/web/round1 --model "MODEL NAME AS SHOWN" --date 2026-11-24
 ```
 
-All commands below assume you are in that folder.
+It prints one line per attempt, for example:
+
+```
+gemini_run_1: rule=first_java_block | public: 3 / 3 passed | hidden: 61 / 69 passed
+```
+
+- `rule=first_java_block` means the code was found. `rule=whole_answer` means no code block was found; tell Claude.
+- `hidden: 61 / 69` means Gemini failed 8 hidden tests in that attempt. Any number below 69 is a failure, which is what we want.
+- The details of each failure are in `gemini_run_k/test_output.txt`.
+
+Instead of running it yourself, you can tell Claude "round 1 saved, model = …", and Claude will run it.
 
 ---
 
-## The three stages
+## Stage 2: Pilot rounds (plan step P8)
 
-| Stage | What it is | Gemini requests | When |
-|---|---|---|---|
-| 1. Smoke test | One request, to prove the key and the runner work | 1 | Now, once billing is on |
-| 2. Pilot (plan step P8) | 5 attempts on the draft task, to check that Gemini fails **fairly**, then freeze the task | 5 per round, at most 3 rounds | Right after stage 1 |
-| 3. Official run (plan step P11) | The 5 attempts that go to the client | 5, **only once** | After Claude finishes steps R, P9 and P10 |
+**Goal:** at least **4 of 5** attempts fail at least one hidden test, and every failure is **fair**, meaning the task text states the rule clearly and Gemini broke it.
 
-Pilot results are design work: they stay in `work/pilot/` and never go to the client. Only stage 3 goes into `results/` and the ZIP.
+1. Do 5 attempts as above into `round1/gemini_run_1` … `gemini_run_5`.
+2. Test them with `--import-web`.
+3. Tell Claude **"round 1 done"**. A fresh Claude agent that never wrote the tests labels every failure:
+   - **(a)** a fair failure;
+   - **(b)** the task text is unclear, so Claude clarifies it;
+   - **(c)** the test is wrong, so Claude fixes it.
+4. Claude tells you the next step:
+   - **Freeze**, if 4 or 5 of 5 have a fair failure and nothing needed fixing;
+   - or **round 2**: Claude changes the task text and makes a new `prompt_to_paste.txt` and `round2` folders, and you do 5 new attempts there.
 
----
+   There are at most 3 rounds. **Always paste the newest `prompt_to_paste.txt`.** Claude rewrites it whenever the task text changes.
 
-## Rules you must keep (the client checks these)
-
-1. **Never change the settings.** The runner sends the task with Google's default settings and the fixed wrapper sentence from `runner/config.json`. Do not edit `config.json` or `task/PROMPT.md` by hand.
-2. **Use the runner, not the Gemini website.** The Gemini app and the AI Studio chat page use their own settings and don't save the raw answer. The client wants the raw API answer (`response.json`) and the exact model version.
-3. **Never re-roll.** An attempt that got an answer counts, even a bad or cut-off answer. You may repeat an attempt **only** if it got no answer at all (HTTP 429, 5xx or a network error after all retries).
-4. **Never edit Gemini's saved files** (`request.json`, `response.json`, `answer.txt`, `WalRecovery.java`, `extraction.json`, `meta.json`). If code looks broken, that is the result.
-5. **Keep the key secret.** Never paste it into a chat, a file in this folder or a command. The runner reads it from `~/.gemini_api_key`.
-6. **Don't show Gemini the tests.** Don't paste tests, results or notes into any Gemini chat.
-7. **Write down what you did:** date, model, and anything unusual (a retry, an error). You can also just tell Claude, and Claude will record it in `work/STATE.md`.
-
----
-
-## Stage 1: Smoke test (1 request)
-
-**Before you start:** billing must be on for your key (https://aistudio.google.com/apikey → **Set up billing**). On the free tier, every request fails with HTTP 429.
-
-**1a. Check that the model still exists:**
-
-```
-python3 runner/run.py --models
-```
-
-The list should include `models/gemini-3.1-pro-preview`. If Google has since released a newer Gemini **Pro** model, stop and tell Claude before going on.
-
-**1b. Send one request** (it can take several minutes, because Gemini thinks for a long time):
-
-```
-python3 runner/run.py --pilot 1 --out ../work/pilot/smoke2
-```
-
-**1c. Check the result:**
-
-```
-cat ../work/pilot/smoke2/gemini_run_1/meta.json
-```
-
-Good result:
-- `"http_status": 200`
-- `"finishReason": "STOP"`
-- `"modelVersion"` filled in, not `null`
-
-If the status is 429, billing is not active yet: wait 10–15 minutes and repeat 1b. If `finishReason` is `MAX_TOKENS`, the answer was cut off. That's allowed, but tell Claude.
-
-```
-cat ../work/pilot/smoke2/gemini_run_1/extraction.json
-```
-
-Good result: `"rule": "java_block"` (or `"first_block"`), `"self_check_substring": true`, and `"end"` larger than 0.
-
-**1d. Check that the extracted code runs through the tests:**
-
-```
-python3 runner/run.py --test ../work/pilot/smoke2/gemini_run_1/WalRecovery.java
-```
-
-It must finish and print `TOTAL: x / 72 passed`. Any number is fine here: this only proves the pipeline works.
-
-**Tell Claude:** "smoke done". Claude closes the two open issues in STATE.md and commits.
-
----
-
-## Stage 2: Pilot (plan step P8)
-
-Goal: Gemini should fail at least one hidden test in **at least 4 of 5** attempts, and each failure must be **fair**. Fair means the task text states the rule clearly and Gemini broke it.
-
-### 2a. Run round 1 (5 requests, one after another; allow 15–60 minutes)
-
-```
-python3 runner/run.py --pilot 5 --out ../work/pilot/round1
-```
-
-Each attempt prints one line with its HTTP status and finishReason. If an attempt has no answer after all retries (HTTP 429 or 5xx), note its number and tell Claude; don't run the whole round again.
-
-### 2b. Test each attempt and save the output
-
-```
-for k in 1 2 3 4 5; do
-  python3 runner/run.py --test ../work/pilot/round1/gemini_run_$k/WalRecovery.java \
-    > ../work/pilot/round1/gemini_run_$k/test_output.txt 2>&1
-  echo "attempt $k: $(grep '^hidden' ../work/pilot/round1/gemini_run_$k/test_output.txt)"
-done
-```
-
-Example output: `attempt 1: hidden: 61 / 69 passed`. Any attempt below 69/69 failed at least one hidden test.
-
-### 2c. Judge every failing test
-
-Open `../work/pilot/round1/gemini_run_k/test_output.txt`. Each failure shows the test id (for example `H07`), the expected line and Gemini's actual line.
-
-For each failure:
-
-1. Find the test in `tests/hidden/HiddenTests.java` (search for `// H07`). Its comment gives the rules (`Rules: R10, R12`) and a step-by-step derivation.
-2. Read those rules in `task/PROMPT.md`.
-3. Decide on one label:
-   - **(a) Fair failure:** the rule is stated clearly and Gemini broke it. Copy the rule sentence.
-   - **(b) The task text is unclear or silent:** a careful reader could reach Gemini's answer. The task text must be clarified.
-   - **(c) The test is wrong:** the derivation has a mistake.
-
-Write the results in `../work/pilot/round1/notes.md`:
-
-```
-| Attempt | Test | Expected | Gemini | Label | Rule / reason |
-|---|---|---|---|---|---|
-| 1 | H07 | OK ... validLength=13 tornTail=true | ERR CHECKSUM_MISMATCH@13 | (a) | R10: "..." |
-```
-
-**If labelling is too much work, you can stop after 2b and tell Claude "round 1 done".** Claude can do 2c in a fresh session that never wrote the tests. (b) and (c) mean changing the task text or a test; Claude must do those, because each change needs a hand derivation and a re-check.
-
-### 2d. Decide what happens next
-
-Count the attempts that have at least one **(a)** failure:
-
-| Result | What happens |
-|---|---|
-| Any (b) or (c) found | Claude fixes the task text or the test. Then run round 2 (`--out ../work/pilot/round2`) with the new text. |
-| 5 of 5 have an (a) failure | **Freeze** (2e). |
-| 4 of 5 | Claude adds one "hardening" rule (PLAN.md §4.7) and you run one more round. If that round gives 4 or 5 of 5, freeze. |
-| 3 of 5 or fewer | Claude adds a hardening rule and you run another round. |
-
-There are **at most 3 rounds**. If the result is still not enough after round 3, stop and decide with Claude.
-
-### 2e. Freeze the task text
-
-Claude does this when you say "freeze". For reference, it means:
-
-```
-sha256sum task/PROMPT.md
-```
-
-The hash is written into `work/STATE.md` as `PROMPT.md: FROZEN sha256=... on YYYY-MM-DD`. **After this, `task/PROMPT.md` must never change.**
-
----
-
-## Between stage 2 and stage 3 (Claude, no Gemini needed)
-
-- **R:** the reference solution, written from the frozen task text alone. It must pass all 72 tests on 3 runs.
-- **P9:** finishes the runner (`--fresh` mode, the offline re-test, `report.md` and `summary.json`). P9 normally makes one test request to Gemini; you can make it yourself, or Claude skips it.
-- **P10:** 8 mutants (deliberately broken copies of the reference); the tests must catch all 8.
-
-Claude tells you when these are done. Don't start stage 3 before that: `--fresh` is not finished until P9.
+Pilot results stay in `work/pilot/`; they never go to the client.
 
 ---
 
 ## Stage 3: Official run (plan step P11). Do it ONCE.
 
-### 3a. Check the preconditions (all must be true)
+Start only when Claude says that **R, P9 and P10 are done**: the reference solution passes all tests, the runner is finished, and the mutants are killed. Claude will then:
 
-```
-grep 'PROMPT.md: FROZEN' ../work/STATE.md       # shows the frozen hash
-sha256sum task/PROMPT.md                         # must equal that hash
-python3 runner/run.py --test reference/WalRecovery.java   # must say TOTAL: 72 / 72 passed (or the final count)
-ls results/                                      # must have NO gemini_run_* folders
-```
+- make a fresh `work/pilot/web/prompt_to_paste.txt` from the **frozen** task text and confirm its fingerprint (SHA-256);
+- create the empty folders `wal-recovery/results/gemini_run_1` … `gemini_run_5`.
 
-If anything is wrong, stop and tell Claude.
+Then you:
 
-### 3b. Check the model on the day
+1. Check the model picker again. If a newer **Pro** model has appeared since the pilot, tell Claude before you start.
+2. Do 5 attempts exactly as above, saving each answer as `wal-recovery/results/gemini_run_k/answer.txt`, with a screenshot.
+3. Tell Claude **"official run done, model = …, date = …"**.
 
-```
-python3 runner/run.py --models
-```
-
-Also check Google's model page (https://ai.google.dev/gemini-api/docs/models). If a newer Gemini **Pro** model exists, tell Claude before you start; `config.json` must be updated and the reason recorded.
-
-### 3c. Run the 5 attempts (once)
-
-```
-python3 runner/run.py --fresh --out results
-```
-
-- If an attempt got **no** answer after all retries, tell Claude. Only that attempt is repeated, and the repeat is written down.
-- **Never** run it again because the results look bad, or too good.
-
-### 3d. Re-test offline twice, and check that the results are identical
-
-```
-python3 runner/run.py
-cp results/summary.json ../work/scratch/summary_1.json
-python3 runner/run.py
-diff ../work/scratch/summary_1.json results/summary.json && echo IDENTICAL
-```
-
-### 3e. Read the result
-
-```
-cat results/report.md
-```
-
-The summary table shows, for example, `gemini attempt 1   61 / 69`. You need **at least 4 of 5 attempts below full marks on the hidden tests**. If fewer fail, **don't re-run**: tell Claude (PLAN.md §10 has the fallback).
-
-**Tell Claude:** "official run done". Claude writes the failure analysis (P12), checks it (P13), and builds the ZIP and your reply (P14).
+**Never redo the official run** because the result looks bad. If fewer than 4 of 5 fail, tell Claude; PLAN.md §10 has the fallback.
 
 ---
 
 ## If something goes wrong
 
-| What you see | Meaning | What to do |
-|---|---|---|
-| HTTP 429, "free tier", "limit: 0" | Billing is not active | Turn billing on; wait 10–15 min |
-| HTTP 429 after billing is on | Too many requests per minute | The runner already retries 3 times; wait 10 minutes, then repeat only the failed attempt |
-| HTTP 400 "API key not valid" | Key problem | Check `~/.gemini_api_key` (one line, the key only) |
-| HTTP 404 model not found | Model renamed or withdrawn | Run `--models` and tell Claude |
-| `finishReason: MAX_TOKENS` | The answer was cut off | Still counts; tell Claude so the analysis mentions it |
-| `COMPILE_ERROR` on every test | Gemini's code doesn't compile | Still counts as a failure; don't fix it |
-| The command seems stuck | Gemini is thinking (up to 10 min per attempt) | Wait; the timeout is 600 s per request |
+| What you see | What to do |
+|---|---|
+| Gemini shows an error and no answer | Repeat that attempt in a new chat; write down that you did |
+| Gemini stops halfway ("cut off") | It still counts. Save what is there, and tell Claude |
+| The answer has no code block, or several | Save it as is; the runner's rule decides (first `java` block, else first block, else the whole text) |
+| `rule=whole_answer` after import | You probably copied by selecting text: copy again with the copy button, from the **same** chat, if it's still open |
+| `COMPILE_ERROR` on every test | Gemini's code doesn't compile. That counts as a failure; don't fix it |
+| Gemini asks a question instead of answering | Don't reply. It counts as an answer with no code |
