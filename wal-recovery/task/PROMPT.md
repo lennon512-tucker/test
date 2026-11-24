@@ -168,16 +168,16 @@ The checks are made in this order: R1, R2, R3, R4. The first rule that applies d
 
 Phase 1 walks through the records, starting with p = 4. It checks only each record's frame: the type, N, whether the record fits in the log, and the checksum. It does not check the payload contents; phase 2 does that.
 
-For each p, the checks are made in this order: R5, R6, R7, R8, R9, R10, R11. The first rule that applies decides what happens at p. Because of this order, R7 and R8 also apply to a record that does not fit in the log.
+For each p, the checks are made in this order: R5, R6, R7, R8, R9, R10, R11. The first rule that applies decides what happens at p. Because of this order, R7 and R8 apply to every record with at least 3 bytes left at p, including a record that does not fit in the log (R9) and a last record whose checksum is wrong (R10).
 
 - **R5.** If p = L, phase 1 ends with no torn tail: validLength = L and tornTail = false.
 - **R6.** If L − p is 1 or 2, there is a torn tail at p (R12), whatever those bytes are.
 - **R7.** If the type byte at p is not 1, 2, 3, 4 or 5, throw UNKNOWN_TYPE at p.
-- **R8.** If N (the u16 at p + 1) is greater than MAX_PAYLOAD, throw RECORD_TOO_LARGE at p.
+- **R8.** If N (the u16 at p + 1) is greater than MAX_PAYLOAD, throw RECORD_TOO_LARGE at p. N is unsigned: for example, the bytes `80 00` are N = 32768, which is greater than MAX_PAYLOAD.
 - **R9.** If p + 5 + N > L (the record does not fit in the log), there is a torn tail at p (R12).
-- **R10.** If the stored checksum is wrong: when the record ends exactly at L (p + 5 + N = L), there is a torn tail at p (R12); when it ends before L (p + 5 + N < L), throw CHECKSUM_MISMATCH at p.
+- **R10.** If the stored checksum is wrong: when the record ends exactly at L (p + 5 + N = L), there is a torn tail at p (R12); when it ends before L (p + 5 + N < L), throw CHECKSUM_MISMATCH at p. This holds even when only 1 or 2 bytes follow the record.
 - **R11.** Otherwise the record is intact. Add it to the list of intact records, set p to p + 5 + N, and continue with R5.
-- **R12.** A torn tail at p ends phase 1: validLength = p and tornTail = true. The bytes from p to L − 1 are the torn tail. They hold no intact records, and nothing in them is checked again.
+- **R12.** A torn tail at p ends phase 1: validLength = p and tornTail = true. The bytes from p to L − 1 are the torn tail. They hold no intact records, and phase 2 does not process or check them (P5).
 
 ### 7.3 Phase 2: replay
 
@@ -195,7 +195,7 @@ For each record at p, the checks are made in this order: R13, R14, R15, R16, R17
 - **R15.** Key (PUT, DELETE). If k < MIN_KEY_LEN, or k > MAX_KEY_LEN, or any of the k key bytes is outside KEY_BYTE_MIN to KEY_BYTE_MAX, throw BAD_KEY at p.
 - **R16.** Value (PUT). If any of the v value bytes is outside VALUE_BYTE_MIN to VALUE_BYTE_MAX, throw BAD_VALUE at p.
 - **R17.** Reused id (BEGIN). If an earlier BEGIN record in the log has the same txn, throw DUPLICATE_TXN at p. This applies whether that transaction is still open, committed or aborted.
-- **R18.** Open limit (BEGIN). If MAX_OPEN_TXNS transactions are open at this point, throw TOO_MANY_OPEN at p.
+- **R18.** Open limit (BEGIN). If MAX_OPEN_TXNS transactions are open at this point (before this BEGIN record is applied), throw TOO_MANY_OPEN at p. A transaction whose COMMIT or ABORT record has already been processed is no longer open and does not count.
 - **R19.** Open check (PUT, DELETE, COMMIT, ABORT). If the transaction txn is not open, throw TXN_NOT_OPEN at p. This covers an id that never had a BEGIN record and an id whose transaction is already committed or aborted.
 - **R20.** BEGIN action: the transaction txn becomes open, with an empty write list.
 - **R21.** PUT and DELETE action: append the write (PUT of key and value, or DELETE of key) to the end of the transaction's write list. The state does not change yet.
@@ -204,10 +204,10 @@ For each record at p, the checks are made in this order: R13, R14, R15, R16, R17
 
 ### 7.4 Result
 
-If phase 2 processes every intact record without throwing, `recover` returns a `Result` with the fields below. No field and no list element is null.
+If phase 2 processes every intact record without throwing, `recover` returns a `Result` with the fields below. No field and no list element is null. Each txn id in the lists is its u32 value as a non-negative `long`: for example, the txn bytes `FF FF FF FF` give 4294967295, not −1.
 
 - **R24.** `state`: the state after phase 2. It contains only the effects of committed transactions. The tests do not check the map's iteration order.
-- **R25.** `committed`: the txn of each COMMIT record, in log order. `aborted`: the txn of each ABORT record, in log order.
+- **R25.** `committed`: the txn of each COMMIT record processed by phase 2, in log order. `aborted`: the txn of each ABORT record processed by phase 2, in log order. A COMMIT or ABORT in the torn tail is not processed, so it is not listed.
 - **R26.** `incomplete`: the txn of every transaction that is still open after phase 2, in ascending numeric order of the u32 values.
 - **R27.** `validLength` and `tornTail`: the values set by phase 1 (R5 or R12).
 
@@ -218,14 +218,16 @@ The tests compare `state` as a set of key-value pairs, and compare each list ele
 `recover` throws at most one exception: the first one reached by the rules in section 7. These consequences of the rule order are stated here so that no doubt is left:
 
 - **P1.** The header rules R1 to R4 come first. If one of them decides the outcome, no record is read.
-- **P2.** Phase 1 runs over the whole log before phase 2 starts. A phase-1 error anywhere in the log beats a phase-2 error anywhere in the log, even when the phase-2 problem is in an earlier record. The phase-1 errors are UNKNOWN_TYPE, RECORD_TOO_LARGE and CHECKSUM_MISMATCH. The phase-2 errors are MALFORMED_PAYLOAD, BAD_TXN_ID, BAD_KEY, BAD_VALUE, DUPLICATE_TXN, TOO_MANY_OPEN and TXN_NOT_OPEN.
+- **P2.** Phase 1 finishes before phase 2 starts. A phase-1 error anywhere in the log beats a phase-2 error anywhere in the log, even when the phase-2 problem is in an earlier record. The phase-1 errors are UNKNOWN_TYPE, RECORD_TOO_LARGE and CHECKSUM_MISMATCH. The phase-2 errors are MALFORMED_PAYLOAD, BAD_TXN_ID, BAD_KEY, BAD_VALUE, DUPLICATE_TXN, TOO_MANY_OPEN and TXN_NOT_OPEN.
 - **P3.** Phase 1 stops at the first p, in log order, where it throws or finds a torn tail. Nothing after that point is checked by phase 1.
-- **P4.** In phase 2, the first record in log order that fails a check decides the error. Within one record, the first failing check in the order R13, R14, R15, R16, R17, R18, R19 decides the code, so the field checks (R13 to R16) always come before the transaction checks (R17 to R19).
+- **P4.** In phase 2, the first record in log order that fails a check decides the error. Within one record, the first failing check in the order R13, R14, R15, R16, R17, R18, R19 decides the code, so the field checks (R13 to R16) always come before the transaction checks (R17 to R19), and for a BEGIN record DUPLICATE_TXN (R17) comes before TOO_MANY_OPEN (R18).
 - **P5.** Bytes in the torn tail are never checked by phase 2, whatever they contain. A torn tail does not prevent errors: if an intact record before the torn tail fails a phase-2 check, `recover` throws that error.
 
 ## 9. Error table
 
 The offset p is the offset of the type byte of the record that fails.
+
+This table is a summary of sections 7 and 8. A row applies only when no earlier check in their order has already decided the outcome. For example, a PUT record with txn 0 whose N does not match its layout gives MALFORMED_PAYLOAD (R13), not BAD_TXN_ID (R14).
 
 | Outcome | When | Rule | Offset reported |
 |---|---|---|---|
@@ -234,7 +236,7 @@ The offset p is the offset of the type byte of the record that fails.
 | UNKNOWN_TYPE | at least 3 bytes remain at p and the type byte is not 1 to 5 | R7 | p |
 | RECORD_TOO_LARGE | at least 3 bytes remain at p, the type byte is 1 to 5, and N > 1024 | R8 | p |
 | CHECKSUM_MISMATCH | the record fits, its stored checksum is wrong, and it ends before L | R10 | p |
-| MALFORMED_PAYLOAD | the payload layout does not match the record type | R13 | p |
+| MALFORMED_PAYLOAD | N does not match the payload layout of the record type | R13 | p |
 | BAD_TXN_ID | txn is 0 | R14 | p |
 | BAD_KEY | k is 0, k is more than 32, or a key byte is outside `0x21` to `0x7E` | R15 | p |
 | BAD_VALUE | a value byte is outside `0x20` to `0x7E` | R16 | p |
@@ -251,14 +253,14 @@ These cases are valid and must not throw:
 3. A COMMIT of a transaction with no writes. Its txn is appended to `committed`, and the state does not change.
 4. Txn ids in any order. Ids do not need to increase or be consecutive; any id from 1 to 4294967295 is valid.
 5. A log of exactly the 4 header bytes. The result is the empty result with validLength = 4 and tornTail = false (R5).
-6. 1 or 2 bytes left after the last intact record. They are a torn tail (R6).
+6. 1 or 2 bytes left after the header or after the last intact record. They are a torn tail (R6): validLength is the offset of the first of those bytes, and tornTail = true.
 7. A transaction that is never committed or aborted. Its txn is in `incomplete`, and its writes are never applied.
 8. Several transactions that write the same key, or one transaction that writes the same key more than once. The writes are applied at commit time in the order of R22, so the write applied last decides the final value.
 9. A torn tail whose bytes would break a rule if they were checked (P5).
 
 ## 11. Worked examples
 
-Bytes are in hex. Each line is one record: its offset (decimal), its bytes, and what it is. In the expected results, `{"a"="1"}` is a map in which the key "a" has the value "1", and `[2, 1]` is a list with the elements 2 and 1, in that order.
+Bytes are in hex. The first line is the header; each further line is one record: its offset (decimal), its bytes, and what it is. The last line gives L. In the expected results, `{"a"="1"}` is a map in which the key "a" has the value "1", and `[2, 1]` is a list with the elements 2 and 1, in that order.
 
 ### Example 1: interleaved transactions
 

@@ -1,6 +1,10 @@
 # Worked examples: hand derivations (P1)
 
-Source of truth: `wal-recovery/task/PROMPT.md` (DRAFT v1). Rule numbers below are the R/P numbers in PROMPT.md.
+Source of truth: `wal-recovery/task/PROMPT.md` (DRAFT v2 (audited); written against DRAFT v1). Rule numbers below are the R/P numbers in PROMPT.md.
+
+P2 audit (2026-11-24): the P2 edits changed wording only; rule numbers (R1-R27, P1-P5), example bytes and expected
+outcomes are unchanged. All three outcomes were re-derived by hand independently, and every record's hex, offset and
+checksum was re-checked with the separate script `work/scratch/p2_verify_examples.py`. No changes needed below.
 
 How the bytes were made: `work/scratch/encode_examples.py` (encoding and checksums only, no decoding, per G3).
 `work/scratch/check_prompt_hex.py` confirms that the hex in PROMPT.md equals the encoder's bytes (text comparison only).
