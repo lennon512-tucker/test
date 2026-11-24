@@ -75,3 +75,19 @@ if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "range":
     open("stressE.bin", "wb").write(E(100000, 300000))
     open("stressF.bin", "wb").write(F(50000, 150000))
     open("stressG.bin", "wb").write(G(200000, 250000))
+
+def Hmem(keys, n, reads, readers=1):
+    """Within the stated shapes: `readers` long-lived txns begin early; then n single-write commits rewrite keys
+    of a `keys`-key state (round robin); then reader 1 counts the whole range `reads` times."""
+    out = bytearray(MAGIC); t = 100
+    t = base(out, keys, t)              # build the state (8 writes per txn)
+    for r in range(1, readers + 1): out += frame(1, u32(r))
+    for i in range(n):
+        t += 1; out += frame(1, u32(t)) + put(t, b"k%06d" % (i % keys), b"w") + frame(4, u32(t))
+    rr = rng(1, b"k000000", b"k999999", keys)
+    for _ in range(reads): out += rr
+    return out
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "mem":
+    a = Hmem(200000, 300000, 1000, 1); open("stressH1.bin", "wb").write(a)
+    b = Hmem(200000, 280000, 1000, 3); open("stressH2.bin", "wb").write(b)
+    print(len(a), len(b))

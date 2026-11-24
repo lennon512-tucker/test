@@ -58,7 +58,7 @@ def gemini_attempts(out_dir, n, cfg):
         # TODO (later sessions): test each attempt here (javatest.py) for --fresh.
 
 
-def oneprovider_attempts(out_dir, n, cfg, test=True):
+def oneprovider_attempts(out_dir, n, cfg, test=True, first=1):
     """Attempts through OneProvider (OpenAI-compatible, streamed). Per attempt folder: request.json
     (key not included), response.sse (raw stream), answer.txt (content only, reasoning excluded),
     WalRecovery.java, extraction.json, meta.json and, with test=True, test_results.json and
@@ -68,7 +68,7 @@ def oneprovider_attempts(out_dir, n, cfg, test=True):
     write(os.path.join(out_dir, "prompt_sent.txt"), prompt)
     key = oneprovider.get_key()
     baseline = gemini.count_tokens(cfg["model"], prompt)
-    for k in range(1, n + 1):
+    for k in range(first, first + n):
         d = os.path.join(out_dir, "gemini_run_%d" % k)
         os.makedirs(d, exist_ok=True)
         raw, parsed, info = oneprovider.generate(cfg["model"], prompt, key, cfg["max_tokens"],
@@ -144,9 +144,9 @@ def import_web(out_dir, model, date, mode, cfg):
         print("%s: rule=%s | %s" % (sub, ex["rule"], " | ".join(summ)))
 
 
-def run_attempts(out_dir, n, cfg):
+def run_attempts(out_dir, n, cfg, first=1):
     if cfg.get("provider", "google") == "oneprovider":
-        oneprovider_attempts(out_dir, n, cfg)
+        oneprovider_attempts(out_dir, n, cfg, first=first)
     else:
         gemini_attempts(out_dir, n, cfg)
 
@@ -158,6 +158,7 @@ def main():
     ap.add_argument("--fresh", action="store_true")
     ap.add_argument("--attempts", type=int)
     ap.add_argument("--out")
+    ap.add_argument("--first", type=int, default=1, help="number of the first attempt folder (to resume a round)")
     ap.add_argument("--test", metavar="FILE")
     ap.add_argument("--mutants", action="store_true")
     ap.add_argument("--import-web", metavar="DIR",
@@ -177,7 +178,7 @@ def main():
     elif a.pilot:
         if not a.out:
             ap.error("--pilot needs --out")
-        run_attempts(a.out, a.pilot, cfg)
+        run_attempts(a.out, a.pilot, cfg, a.first)
     elif a.fresh:
         if not a.out:
             ap.error("--fresh needs --out")

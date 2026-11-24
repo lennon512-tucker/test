@@ -1,0 +1,1263 @@
+import java.nio.charset.StandardCharsets;
+import java.util.AbstractList;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.RandomAccess;
+
+public final class WalRecovery {
+    private static final byte MAGIC_0 = 0x57; // 'W'
+    private static final byte MAGIC_1 = 0x41; // 'A'
+    private static final byte MAGIC_2 = 0x4C; // 'L'
+    private static final byte MAGIC_3 = 0x31; // '1'
+
+    private static final int HEADER_SIZE = 4;
+    private static final int MAX_PAYLOAD = 1024;
+    private static final int MIN_KEY_LEN = 1;
+    private static final int MAX_KEY_LEN = 32;
+    private static final int KEY_BYTE_MIN = 0x21;
+    private static final int KEY_BYTE_MAX = 0x7E;
+    private static final int VALUE_BYTE_MIN = 0x20;
+    private static final int VALUE_BYTE_MAX = 0x7E;
+    private static final int NAME_BYTE_MIN = 0x21;
+    private static final int NAME_BYTE_MAX = 0x7E;
+    private static final int MAX_OPEN_TXNS = 4;
+    private static final int MAX_WRITES = 8;
+
+    private static final int TYPE_BEGIN = 1;
+    private static final int TYPE_PUT = 2;
+    private static final int TYPE_DELETE = 3;
+    private static final int TYPE_COMMIT = 4;
+    private static final int TYPE_ABORT = 5;
+    private static final int TYPE_SAVEPOINT = 6;
+    private static final int TYPE_ROLLBACK = 7;
+    private static final int TYPE_CHECKPOINT = 8;
+    private static final int TYPE_READ = 9;
+    private static final int TYPE_RANGE = 10;
+
+    private WalRecovery() {}
+
+    /** Recovers the store from a log. Must not modify {@code log}. */
+    public static Result recover(byte[] log) throws WalException {
+        // R1
+        if (log == null) {
+            throw new NullPointerException();
+        }
+        final int len = log.length;
+
+        // R2
+        if (len == 0) {
+            return emptyResult(0, false);
+        }
+
+        // R3
+        if (len < HEADER_SIZE) {
+            if (matchesMagicPrefix(log, len)) {
+                return emptyResult(0, true);
+            }
+            throw new WalException(Code.BAD_MAGIC, 0);
+        }
+
+        // R4
+        if (log[0] != MAGIC_0 || log[1] != MAGIC_1 || log[2] != MAGIC_2 || log[3] != MAGIC_3) {
+            throw new WalException(Code.BAD_MAGIC, 0);
+        }
+
+        // Phase 1: check record frames
+        int validLength;
+        boolean tornTail;
+        int p = HEADER_SIZE;
+        while (true) {
+            // R5
+            if (p == len) {
+                validLength = len;
+                tornTail = false;
+                break;
+            }
+            // R6
+            if (len - p < 3) {
+                validLength = p;
+                tornTail = true;
+                break;
+            }
+            // R7
+            int type = log[p] & 0xFF;
+            if (type < TYPE_BEGIN || type > TYPE_RANGE) {
+                throw new WalException(Code.UNKNOWN_TYPE, p);
+            }
+            // R8
+            int n = readU16(log, p + 1);
+            if (n > MAX_PAYLOAD) {
+                throw new WalException(Code.RECORD_TOO_LARGE, p);
+            }
+            // R9
+            int end = p + 5 + n;
+            if (end > len) {
+                validLength = p;
+                tornTail = true;
+                break;
+            }
+            // R10
+            int s1 = 0;
+            int s2 = 0;
+            int checkEnd = p + 3 + n;
+            for (int i = p; i < checkEnd; i++) {
+                s1 += log[i] & 0xFF;
+                if (s1 >= 255) {
+                    s1 -= 255;
+                }
+                s2 += s1;
+                if (s2 >= 255) {
+                    s2 -= 255;
+                }
+            }
+            int storedS2 = log[checkEnd] & 0xFF;
+            int storedS1 = log[checkEnd + 1] & 0xFF;
+            if (storedS2 != s2 || storedS1 != s1) {
+                if (end == len) {
+                    validLength = p;
+                    tornTail = true;
+                    break;
+                }
+                throw new WalException(Code.CHECKSUM_MISMATCH, p);
+            }
+            // R11
+            p = end;
+        }
+
+        // Phase 2: replay intact records
+        StateNode currentState = null;
+        SeqNode writeSeqRoot = null;
+        int currentCommitSeq = 0;
+
+        IntHashSet seenTxns = new IntHashSet();
+        Txn[] openTxns = new Txn[MAX_OPEN_TXNS];
+        int openCount = 0;
+        int[] checkpointBuf = new int[MAX_OPEN_TXNS];
+
+        UnsignedIntList committed = new UnsignedIntList();
+        UnsignedIntList aborted = new UnsignedIntList();
+
+        p = HEADER_SIZE;
+        while (p < validLength) {
+            int type = log[p] & 0xFF;
+            int n = readU16(log, p + 1);
+            int pay = p + 3;
+
+            switch (type) {
+                case TYPE_BEGIN -> {
+                    // R13
+                    if (n != 4) {
+                        throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    }
+                    // R14
+                    int txnId = readIntBE(log, pay);
+                    if (txnId == 0) {
+                        throw new WalException(Code.BAD_TXN_ID, p);
+                    }
+                    // R17
+                    if (seenTxns.contains(txnId)) {
+                        throw new WalException(Code.DUPLICATE_TXN, p);
+                    }
+                    // R18
+                    if (openCount == MAX_OPEN_TXNS) {
+                        throw new WalException(Code.TOO_MANY_OPEN, p);
+                    }
+                    // R20
+                    seenTxns.add(txnId);
+                    openTxns[openCount++] = new Txn(txnId, currentState, currentCommitSeq);
+                }
+                case TYPE_PUT -> {
+                    // R13
+                    if (n < 5) {
+                        throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    }
+                    int k = log[pay + 4] & 0xFF;
+                    if (n < 7 + k) {
+                        throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    }
+                    int v = readU16(log, pay + 5 + k);
+                    if (n != 7 + k + v) {
+                        throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    }
+                    // R14
+                    int txnId = readIntBE(log, pay);
+                    if (txnId == 0) {
+                        throw new WalException(Code.BAD_TXN_ID, p);
+                    }
+                    // R15
+                    checkKey(log, pay + 5, k, p);
+                    // R16
+                    checkValue(log, pay + 7 + k, v, p);
+                    // R19
+                    Txn tx = findOpen(openTxns, openCount, txnId);
+                    if (tx == null) {
+                        throw new WalException(Code.TXN_NOT_OPEN, p);
+                    }
+                    // R19a
+                    if (tx.writeCount == MAX_WRITES) {
+                        throw new WalException(Code.TXN_TOO_LARGE, p);
+                    }
+                    // R21
+                    String key = new String(log, pay + 5, k, StandardCharsets.ISO_8859_1);
+                    String val = (v == 0) ? "" : new String(log, pay + 7 + k, v, StandardCharsets.ISO_8859_1);
+                    tx.addWrite(key, val);
+                }
+                case TYPE_DELETE -> {
+                    // R13
+                    if (n < 5) {
+                        throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    }
+                    int k = log[pay + 4] & 0xFF;
+                    if (n != 5 + k) {
+                        throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    }
+                    // R14
+                    int txnId = readIntBE(log, pay);
+                    if (txnId == 0) {
+                        throw new WalException(Code.BAD_TXN_ID, p);
+                    }
+                    // R15
+                    checkKey(log, pay + 5, k, p);
+                    // R19
+                    Txn tx = findOpen(openTxns, openCount, txnId);
+                    if (tx == null) {
+                        throw new WalException(Code.TXN_NOT_OPEN, p);
+                    }
+                    // R19a
+                    if (tx.writeCount == MAX_WRITES) {
+                        throw new WalException(Code.TXN_TOO_LARGE, p);
+                    }
+                    // R21
+                    String key = new String(log, pay + 5, k, StandardCharsets.ISO_8859_1);
+                    tx.addWrite(key, null);
+                }
+                case TYPE_COMMIT -> {
+                    // R13
+                    if (n != 4) {
+                        throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    }
+                    // R14
+                    int txnId = readIntBE(log, pay);
+                    if (txnId == 0) {
+                        throw new WalException(Code.BAD_TXN_ID, p);
+                    }
+                    // R19
+                    int idx = findOpenIndex(openTxns, openCount, txnId);
+                    if (idx < 0) {
+                        throw new WalException(Code.TXN_NOT_OPEN, p);
+                    }
+                    // R22
+                    Txn tx = openTxns[idx];
+                    openCount = removeOpenAt(openTxns, openCount, idx);
+
+                    boolean conflicts = hasConflict(tx, writeSeqRoot, currentCommitSeq);
+                    if (!conflicts) {
+                        currentCommitSeq++;
+                        for (int i = 0; i < tx.writeCount; i++) {
+                            String wk = tx.writeKeys[i];
+                            String wv = tx.writeValues[i];
+                            if (wv != null) {
+                                currentState = StateNode.put(currentState, wk, wv);
+                            } else {
+                                currentState = StateNode.delete(currentState, wk);
+                            }
+                            if (openCount > 0) {
+                                writeSeqRoot = SeqNode.putSeq(writeSeqRoot, wk, currentCommitSeq);
+                            }
+                        }
+                        if (openCount == 0) {
+                            writeSeqRoot = null;
+                        }
+                        committed.addInt(txnId);
+                    } else {
+                        if (openCount == 0) {
+                            writeSeqRoot = null;
+                        }
+                        aborted.addInt(txnId);
+                    }
+                }
+                case TYPE_ABORT -> {
+                    // R13
+                    if (n != 4) {
+                        throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    }
+                    // R14
+                    int txnId = readIntBE(log, pay);
+                    if (txnId == 0) {
+                        throw new WalException(Code.BAD_TXN_ID, p);
+                    }
+                    // R19
+                    int idx = findOpenIndex(openTxns, openCount, txnId);
+                    if (idx < 0) {
+                        throw new WalException(Code.TXN_NOT_OPEN, p);
+                    }
+                    // R23
+                    openCount = removeOpenAt(openTxns, openCount, idx);
+                    if (openCount == 0) {
+                        writeSeqRoot = null;
+                    }
+                    aborted.addInt(txnId);
+                }
+                case TYPE_SAVEPOINT -> {
+                    // R13
+                    if (n != 5) {
+                        throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    }
+                    // R14
+                    int txnId = readIntBE(log, pay);
+                    if (txnId == 0) {
+                        throw new WalException(Code.BAD_TXN_ID, p);
+                    }
+                    // R16a
+                    int name = log[pay + 4] & 0xFF;
+                    if (name < NAME_BYTE_MIN || name > NAME_BYTE_MAX) {
+                        throw new WalException(Code.BAD_NAME, p);
+                    }
+                    // R19
+                    Txn tx = findOpen(openTxns, openCount, txnId);
+                    if (tx == null) {
+                        throw new WalException(Code.TXN_NOT_OPEN, p);
+                    }
+                    // R23a
+                    tx.setSavepoint((byte) name, p);
+                }
+                case TYPE_ROLLBACK -> {
+                    // R13
+                    if (n != 5) {
+                        throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    }
+                    // R14
+                    int txnId = readIntBE(log, pay);
+                    if (txnId == 0) {
+                        throw new WalException(Code.BAD_TXN_ID, p);
+                    }
+                    // R16a
+                    int name = log[pay + 4] & 0xFF;
+                    if (name < NAME_BYTE_MIN || name > NAME_BYTE_MAX) {
+                        throw new WalException(Code.BAD_NAME, p);
+                    }
+                    // R19
+                    Txn tx = findOpen(openTxns, openCount, txnId);
+                    if (tx == null) {
+                        throw new WalException(Code.TXN_NOT_OPEN, p);
+                    }
+                    // R19b & R23b
+                    if (!tx.rollbackTo((byte) name)) {
+                        throw new WalException(Code.NO_SAVEPOINT, p);
+                    }
+                }
+                case TYPE_CHECKPOINT -> {
+                    // R13
+                    if (n < 1) {
+                        throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    }
+                    int c = log[pay] & 0xFF;
+                    if (n != 1 + 4 * c) {
+                        throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    }
+                    // R14
+                    for (int i = 0; i < c; i++) {
+                        if (readIntBE(log, pay + 1 + 4 * i) == 0) {
+                            throw new WalException(Code.BAD_TXN_ID, p);
+                        }
+                    }
+                    // R19c
+                    if (c != openCount) {
+                        throw new WalException(Code.CHECKPOINT_MISMATCH, p);
+                    }
+                    sortOpenIds(openTxns, openCount, checkpointBuf);
+                    for (int i = 0; i < c; i++) {
+                        if (readIntBE(log, pay + 1 + 4 * i) != checkpointBuf[i]) {
+                            throw new WalException(Code.CHECKPOINT_MISMATCH, p);
+                        }
+                    }
+                    // R23c: no state change
+                }
+                case TYPE_READ -> {
+                    // R13
+                    if (n < 6) {
+                        throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    }
+                    int k = log[pay + 4] & 0xFF;
+                    if (n < 6 + k) {
+                        throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    }
+                    int f = log[pay + 5 + k] & 0xFF;
+                    int v = 0;
+                    if (f == 0) {
+                        if (n != 6 + k) {
+                            throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                        }
+                    } else if (f == 1) {
+                        if (n < 8 + k) {
+                            throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                        }
+                        v = readU16(log, pay + 6 + k);
+                        if (n != 8 + k + v) {
+                            throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                        }
+                    } else {
+                        throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    }
+                    // R14
+                    int txnId = readIntBE(log, pay);
+                    if (txnId == 0) {
+                        throw new WalException(Code.BAD_TXN_ID, p);
+                    }
+                    // R15
+                    checkKey(log, pay + 5, k, p);
+                    // R16
+                    if (f == 1) {
+                        checkValue(log, pay + 8 + k, v, p);
+                    }
+                    // R19
+                    Txn tx = findOpen(openTxns, openCount, txnId);
+                    if (tx == null) {
+                        throw new WalException(Code.TXN_NOT_OPEN, p);
+                    }
+                    // R19d
+                    String key = new String(log, pay + 5, k, StandardCharsets.ISO_8859_1);
+                    String view = null;
+                    boolean foundInWrites = false;
+                    for (int i = tx.writeCount - 1; i >= 0; i--) {
+                        if (tx.writeKeys[i].equals(key)) {
+                            key = tx.writeKeys[i];
+                            view = tx.writeValues[i];
+                            foundInWrites = true;
+                            break;
+                        }
+                    }
+                    if (!foundInWrites) {
+                        StateNode snapNode = StateNode.getNode(tx.snapshot, key);
+                        if (snapNode != null) {
+                            key = snapNode.key;
+                            view = snapNode.value;
+                        }
+                    }
+                    if (f == 0) {
+                        if (view != null) {
+                            throw new WalException(Code.READ_MISMATCH, p);
+                        }
+                    } else {
+                        if (view == null || !matchesBytes(view, log, pay + 8 + k, v)) {
+                            throw new WalException(Code.READ_MISMATCH, p);
+                        }
+                    }
+                    // R23d
+                    tx.addReadKey(key);
+                }
+                case TYPE_RANGE -> {
+                    // R13
+                    if (n < 6) {
+                        throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    }
+                    int k1 = log[pay + 4] & 0xFF;
+                    if (n < 6 + k1) {
+                        throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    }
+                    int k2 = log[pay + 5 + k1] & 0xFF;
+                    if (n != 10 + k1 + k2) {
+                        throw new WalException(Code.MALFORMED_PAYLOAD, p);
+                    }
+                    // R14
+                    int txnId = readIntBE(log, pay);
+                    if (txnId == 0) {
+                        throw new WalException(Code.BAD_TXN_ID, p);
+                    }
+                    // R15
+                    checkKey(log, pay + 5, k1, p);
+                    checkKey(log, pay + 6 + k1, k2, p);
+                    // R19
+                    Txn tx = findOpen(openTxns, openCount, txnId);
+                    if (tx == null) {
+                        throw new WalException(Code.TXN_NOT_OPEN, p);
+                    }
+                    // R19e
+                    String lo = new String(log, pay + 5, k1, StandardCharsets.ISO_8859_1);
+                    String hi = new String(log, pay + 6 + k1, k2, StandardCharsets.ISO_8859_1);
+                    long expectedCount = Integer.toUnsignedLong(readIntBE(log, pay + 6 + k1 + k2));
+
+                    int cmpRange = lo.compareTo(hi);
+                    int actualCount = 0;
+                    if (cmpRange <= 0) {
+                        actualCount = StateNode.countRange(tx.snapshot, lo, hi);
+                        for (int i = tx.writeCount - 1; i >= 0; i--) {
+                            String wk = tx.writeKeys[i];
+                            boolean seenLater = false;
+                            for (int j = i + 1; j < tx.writeCount; j++) {
+                                if (wk.equals(tx.writeKeys[j])) {
+                                    seenLater = true;
+                                    break;
+                                }
+                            }
+                            if (seenLater) {
+                                continue;
+                            }
+                            if (lo.compareTo(wk) <= 0 && wk.compareTo(hi) <= 0) {
+                                boolean inSnap = StateNode.getNode(tx.snapshot, wk) != null;
+                                boolean presentNow = tx.writeValues[i] != null;
+                                if (!inSnap && presentNow) {
+                                    actualCount++;
+                                } else if (inSnap && !presentNow) {
+                                    actualCount--;
+                                }
+                            }
+                        }
+                    }
+                    if ((long) actualCount != expectedCount) {
+                        throw new WalException(Code.RANGE_MISMATCH, p);
+                    }
+                    // R23e
+                    if (cmpRange <= 0) {
+                        tx.addReadRange(lo, hi);
+                    }
+                }
+                default -> throw new WalException(Code.UNKNOWN_TYPE, p);
+            }
+
+            p += 5 + n;
+        }
+
+        // Build final Result (R24, R25, R26, R27)
+        Map<String, String> stateMap;
+        if (currentState == null) {
+            stateMap = Collections.emptyMap();
+        } else {
+            HashMap<String, String> map = HashMap.newHashMap(currentState.size);
+            StateNode.collectToMap(currentState, map);
+            stateMap = Collections.unmodifiableMap(map);
+        }
+
+        List<Long> incomplete;
+        if (openCount == 0) {
+            incomplete = List.of();
+        } else {
+            sortOpenIds(openTxns, openCount, checkpointBuf);
+            List<Long> inc = new ArrayList<>(openCount);
+            for (int i = 0; i < openCount; i++) {
+                inc.add(Integer.toUnsignedLong(checkpointBuf[i]));
+            }
+            incomplete = Collections.unmodifiableList(inc);
+        }
+
+        return new Result(stateMap, committed, aborted, incomplete, validLength, tornTail);
+    }
+
+    private static Result emptyResult(int validLength, boolean tornTail) {
+        return new Result(Collections.emptyMap(), List.of(), List.of(), List.of(), validLength, tornTail);
+    }
+
+    private static boolean matchesMagicPrefix(byte[] log, int len) {
+        if (len >= 1 && log[0] != MAGIC_0) return false;
+        if (len >= 2 && log[1] != MAGIC_1) return false;
+        if (len >= 3 && log[2] != MAGIC_2) return false;
+        return true;
+    }
+
+    private static int readU16(byte[] log, int offset) {
+        return ((log[offset] & 0xFF) << 8) | (log[offset + 1] & 0xFF);
+    }
+
+    private static int readIntBE(byte[] log, int offset) {
+        return ((log[offset] & 0xFF) << 24)
+             | ((log[offset + 1] & 0xFF) << 16)
+             | ((log[offset + 2] & 0xFF) << 8)
+             | (log[offset + 3] & 0xFF);
+    }
+
+    private static void checkKey(byte[] log, int off, int len, int recordOffset) throws WalException {
+        if (len < MIN_KEY_LEN || len > MAX_KEY_LEN) {
+            throw new WalException(Code.BAD_KEY, recordOffset);
+        }
+        int end = off + len;
+        for (int i = off; i < end; i++) {
+            int b = log[i] & 0xFF;
+            if (b < KEY_BYTE_MIN || b > KEY_BYTE_MAX) {
+                throw new WalException(Code.BAD_KEY, recordOffset);
+            }
+        }
+    }
+
+    private static void checkValue(byte[] log, int off, int len, int recordOffset) throws WalException {
+        int end = off + len;
+        for (int i = off; i < end; i++) {
+            int b = log[i] & 0xFF;
+            if (b < VALUE_BYTE_MIN || b > VALUE_BYTE_MAX) {
+                throw new WalException(Code.BAD_VALUE, recordOffset);
+            }
+        }
+    }
+
+    private static boolean matchesBytes(String s, byte[] log, int off, int len) {
+        if (s.length() != len) {
+            return false;
+        }
+        for (int i = 0; i < len; i++) {
+            if (s.charAt(i) != (char) (log[off + i] & 0xFF)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static Txn findOpen(Txn[] openTxns, int openCount, int txnId) {
+        for (int i = 0; i < openCount; i++) {
+            if (openTxns[i].id == txnId) {
+                return openTxns[i];
+            }
+        }
+        return null;
+    }
+
+    private static int findOpenIndex(Txn[] openTxns, int openCount, int txnId) {
+        for (int i = 0; i < openCount; i++) {
+            if (openTxns[i].id == txnId) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static int removeOpenAt(Txn[] openTxns, int openCount, int idx) {
+        int last = openCount - 1;
+        openTxns[idx] = openTxns[last];
+        openTxns[last] = null;
+        return last;
+    }
+
+    private static void sortOpenIds(Txn[] openTxns, int openCount, int[] out) {
+        for (int i = 0; i < openCount; i++) {
+            int cur = openTxns[i].id;
+            int j = i;
+            while (j > 0 && Integer.compareUnsigned(out[j - 1], cur) > 0) {
+                out[j] = out[j - 1];
+                j--;
+            }
+            out[j] = cur;
+        }
+    }
+
+    private static boolean hasConflict(Txn tx, SeqNode writeSeqRoot, int currentCommitSeq) {
+        int threshold = tx.beginCommitSeq;
+        if (currentCommitSeq <= threshold || writeSeqRoot == null || writeSeqRoot.maxSeq <= threshold) {
+            return false;
+        }
+        StringHashSet readSet = tx.readSet;
+        if (readSet != null) {
+            String[] tab = readSet.table;
+            for (String key : tab) {
+                if (key != null && SeqNode.hasKeySeqGreater(writeSeqRoot, key, threshold)) {
+                    return true;
+                }
+            }
+        }
+        RangeList ranges = tx.readRanges;
+        if (ranges != null) {
+            String[] los = ranges.los;
+            String[] his = ranges.his;
+            int sz = ranges.size;
+            for (int i = 0; i < sz; i++) {
+                if (SeqNode.hasRangeSeqGreater(writeSeqRoot, los[i], his[i], threshold)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static final class Txn {
+        final int id;
+        final StateNode snapshot;
+        final int beginCommitSeq;
+        final String[] writeKeys = new String[MAX_WRITES];
+        final String[] writeValues = new String[MAX_WRITES];
+        int writeCount;
+
+        byte[] spNames;
+        byte[] spPositions;
+        int[] spOffsets;
+        int spCount;
+
+        StringHashSet readSet;
+        RangeList readRanges;
+
+        Txn(int id, StateNode snapshot, int beginCommitSeq) {
+            this.id = id;
+            this.snapshot = snapshot;
+            this.beginCommitSeq = beginCommitSeq;
+        }
+
+        void addWrite(String key, String value) {
+            writeKeys[writeCount] = key;
+            writeValues[writeCount] = value;
+            writeCount++;
+        }
+
+        void setSavepoint(byte name, int recordOffset) {
+            if (spNames == null) {
+                spNames = new byte[4];
+                spPositions = new byte[4];
+                spOffsets = new int[4];
+            } else {
+                for (int i = 0; i < spCount; i++) {
+                    if (spNames[i] == name) {
+                        spPositions[i] = (byte) writeCount;
+                        spOffsets[i] = recordOffset;
+                        return;
+                    }
+                }
+                if (spCount == spNames.length) {
+                    int newCap = spCount * 2;
+                    spNames = Arrays.copyOf(spNames, newCap);
+                    spPositions = Arrays.copyOf(spPositions, newCap);
+                    spOffsets = Arrays.copyOf(spOffsets, newCap);
+                }
+            }
+            spNames[spCount] = name;
+            spPositions[spCount] = (byte) writeCount;
+            spOffsets[spCount] = recordOffset;
+            spCount++;
+        }
+
+        boolean rollbackTo(byte name) {
+            if (spNames == null) {
+                return false;
+            }
+            int foundIdx = -1;
+            for (int i = 0; i < spCount; i++) {
+                if (spNames[i] == name) {
+                    foundIdx = i;
+                    break;
+                }
+            }
+            if (foundIdx < 0) {
+                return false;
+            }
+            int targetPos = spPositions[foundIdx] & 0xFF;
+            int targetOffset = spOffsets[foundIdx];
+
+            for (int i = targetPos; i < writeCount; i++) {
+                writeKeys[i] = null;
+                writeValues[i] = null;
+            }
+            writeCount = targetPos;
+
+            int dst = 0;
+            for (int i = 0; i < spCount; i++) {
+                if (i == foundIdx || spOffsets[i] <= targetOffset) {
+                    spNames[dst] = spNames[i];
+                    spPositions[dst] = spPositions[i];
+                    spOffsets[dst] = spOffsets[i];
+                    dst++;
+                }
+            }
+            spCount = dst;
+            return true;
+        }
+
+        void addReadKey(String key) {
+            if (readSet == null) {
+                readSet = new StringHashSet();
+            }
+            readSet.add(key);
+        }
+
+        void addReadRange(String lo, String hi) {
+            if (readRanges == null) {
+                readRanges = new RangeList();
+            }
+            readRanges.add(lo, hi);
+        }
+    }
+
+    /** Persistent order-statistic AVL tree for snapshots and store state. */
+    private static final class StateNode {
+        final String key;
+        final String value;
+        final StateNode left;
+        final StateNode right;
+        final int height;
+        final int size;
+
+        StateNode(String key, String value, StateNode left, StateNode right, int height, int size) {
+            this.key = key;
+            this.value = value;
+            this.left = left;
+            this.right = right;
+            this.height = height;
+            this.size = size;
+        }
+
+        static int height(StateNode n) {
+            return n == null ? 0 : n.height;
+        }
+
+        static int size(StateNode n) {
+            return n == null ? 0 : n.size;
+        }
+
+        static StateNode make(String key, String value, StateNode left, StateNode right) {
+            int lh = height(left);
+            int rh = height(right);
+            int h = (lh > rh ? lh : rh) + 1;
+            return new StateNode(key, value, left, right, h, size(left) + size(right) + 1);
+        }
+
+        static StateNode rotateRight(StateNode y) {
+            StateNode x = y.left;
+            StateNode newY = make(y.key, y.value, x.right, y.right);
+            return make(x.key, x.value, x.left, newY);
+        }
+
+        static StateNode rotateLeft(StateNode x) {
+            StateNode y = x.right;
+            StateNode newX = make(x.key, x.value, x.left, y.left);
+            return make(y.key, y.value, newX, y.right);
+        }
+
+        static StateNode balance(String key, String value, StateNode left, StateNode right) {
+            int bf = height(left) - height(right);
+            if (bf > 1) {
+                if (height(left.left) < height(left.right)) {
+                    left = rotateLeft(left);
+                }
+                return rotateRight(make(key, value, left, right));
+            }
+            if (bf < -1) {
+                if (height(right.right) < height(right.left)) {
+                    right = rotateRight(right);
+                }
+                return rotateLeft(make(key, value, left, right));
+            }
+            return make(key, value, left, right);
+        }
+
+        static StateNode getNode(StateNode n, String key) {
+            while (n != null) {
+                int cmp = key.compareTo(n.key);
+                if (cmp < 0) {
+                    n = n.left;
+                } else if (cmp > 0) {
+                    n = n.right;
+                } else {
+                    return n;
+                }
+            }
+            return null;
+        }
+
+        static StateNode put(StateNode n, String key, String value) {
+            if (n == null) {
+                return new StateNode(key, value, null, null, 1, 1);
+            }
+            int cmp = key.compareTo(n.key);
+            if (cmp < 0) {
+                StateNode nl = put(n.left, key, value);
+                if (nl == n.left) return n;
+                return balance(n.key, n.value, nl, n.right);
+            } else if (cmp > 0) {
+                StateNode nr = put(n.right, key, value);
+                if (nr == n.right) return n;
+                return balance(n.key, n.value, n.left, nr);
+            } else {
+                if (value.equals(n.value)) {
+                    return n;
+                }
+                return new StateNode(n.key, value, n.left, n.right, n.height, n.size);
+            }
+        }
+
+        static StateNode delete(StateNode n, String key) {
+            if (n == null) {
+                return null;
+            }
+            int cmp = key.compareTo(n.key);
+            if (cmp < 0) {
+                StateNode nl = delete(n.left, key);
+                if (nl == n.left) return n;
+                return balance(n.key, n.value, nl, n.right);
+            } else if (cmp > 0) {
+                StateNode nr = delete(n.right, key);
+                if (nr == n.right) return n;
+                return balance(n.key, n.value, n.left, nr);
+            } else {
+                if (n.left == null) return n.right;
+                if (n.right == null) return n.left;
+                StateNode min = n.right;
+                while (min.left != null) {
+                    min = min.left;
+                }
+                StateNode nr = deleteMin(n.right);
+                return balance(min.key, min.value, n.left, nr);
+            }
+        }
+
+        static StateNode deleteMin(StateNode n) {
+            if (n.left == null) {
+                return n.right;
+            }
+            StateNode nl = deleteMin(n.left);
+            return balance(n.key, n.value, nl, n.right);
+        }
+
+        static int countRange(StateNode root, String lo, String hi) {
+            if (root == null) {
+                return 0;
+            }
+            return countLessOrEqual(root, hi) - countLess(root, lo);
+        }
+
+        private static int countLess(StateNode n, String key) {
+            int count = 0;
+            while (n != null) {
+                int cmp = key.compareTo(n.key);
+                if (cmp <= 0) {
+                    n = n.left;
+                } else {
+                    count += size(n.left) + 1;
+                    n = n.right;
+                }
+            }
+            return count;
+        }
+
+        private static int countLessOrEqual(StateNode n, String key) {
+            int count = 0;
+            while (n != null) {
+                int cmp = key.compareTo(n.key);
+                if (cmp < 0) {
+                    n = n.left;
+                } else if (cmp > 0) {
+                    count += size(n.left) + 1;
+                    n = n.right;
+                } else {
+                    return count + size(n.left) + 1;
+                }
+            }
+            return count;
+        }
+
+        static void collectToMap(StateNode n, Map<String, String> map) {
+            if (n == null) {
+                return;
+            }
+            collectToMap(n.left, map);
+            map.put(n.key, n.value);
+            collectToMap(n.right, map);
+        }
+    }
+
+    /** Mutable augmented AVL tree mapping written keys to latest commit sequence number. */
+    private static final class SeqNode {
+        final String key;
+        int seq;
+        int maxSeq;
+        int height;
+        SeqNode left;
+        SeqNode right;
+
+        SeqNode(String key, int seq) {
+            this.key = key;
+            this.seq = seq;
+            this.maxSeq = seq;
+            this.height = 1;
+        }
+
+        static void update(SeqNode n) {
+            int lh = n.left == null ? 0 : n.left.height;
+            int rh = n.right == null ? 0 : n.right.height;
+            n.height = (lh > rh ? lh : rh) + 1;
+            int m = n.seq;
+            if (n.left != null && n.left.maxSeq > m) m = n.left.maxSeq;
+            if (n.right != null && n.right.maxSeq > m) m = n.right.maxSeq;
+            n.maxSeq = m;
+        }
+
+        static SeqNode rotateRight(SeqNode y) {
+            SeqNode x = y.left;
+            y.left = x.right;
+            x.right = y;
+            update(y);
+            update(x);
+            return x;
+        }
+
+        static SeqNode rotateLeft(SeqNode x) {
+            SeqNode y = x.right;
+            x.right = y.left;
+            y.left = x;
+            update(x);
+            update(y);
+            return y;
+        }
+
+        static SeqNode balance(SeqNode n) {
+            update(n);
+            int lh = n.left == null ? 0 : n.left.height;
+            int rh = n.right == null ? 0 : n.right.height;
+            int bf = lh - rh;
+            if (bf > 1) {
+                int llh = n.left.left == null ? 0 : n.left.left.height;
+                int lrh = n.left.right == null ? 0 : n.left.right.height;
+                if (llh < lrh) {
+                    n.left = rotateLeft(n.left);
+                }
+                return rotateRight(n);
+            }
+            if (bf < -1) {
+                int rrh = n.right.right == null ? 0 : n.right.right.height;
+                int rlh = n.right.left == null ? 0 : n.right.left.height;
+                if (rrh < rlh) {
+                    n.right = rotateRight(n.right);
+                }
+                return rotateLeft(n);
+            }
+            return n;
+        }
+
+        static SeqNode putSeq(SeqNode n, String key, int seq) {
+            if (n == null) {
+                return new SeqNode(key, seq);
+            }
+            int cmp = key.compareTo(n.key);
+            if (cmp < 0) {
+                n.left = putSeq(n.left, key, seq);
+                return balance(n);
+            } else if (cmp > 0) {
+                n.right = putSeq(n.right, key, seq);
+                return balance(n);
+            } else {
+                n.seq = seq;
+                update(n);
+                return n;
+            }
+        }
+
+        static boolean hasKeySeqGreater(SeqNode n, String key, int threshold) {
+            while (n != null && n.maxSeq > threshold) {
+                int cmp = key.compareTo(n.key);
+                if (cmp < 0) {
+                    n = n.left;
+                } else if (cmp > 0) {
+                    n = n.right;
+                } else {
+                    return n.seq > threshold;
+                }
+            }
+            return false;
+        }
+
+        static boolean hasRangeSeqGreater(SeqNode n, String lo, String hi, int threshold) {
+            if (n == null || n.maxSeq <= threshold) {
+                return false;
+            }
+            int cmpLo = (lo == null) ? -1 : lo.compareTo(n.key);
+            if (cmpLo > 0) {
+                return hasRangeSeqGreater(n.right, lo, hi, threshold);
+            }
+            int cmpHi = (hi == null) ? 1 : hi.compareTo(n.key);
+            if (cmpHi < 0) {
+                return hasRangeSeqGreater(n.left, lo, hi, threshold);
+            }
+            if (n.seq > threshold || (lo == null && hi == null)) {
+                return true;
+            }
+            if (cmpLo < 0 && hasRangeSeqGreater(n.left, lo, null, threshold)) {
+                return true;
+            }
+            return cmpHi > 0 && hasRangeSeqGreater(n.right, null, hi, threshold);
+        }
+    }
+
+    /** Primitive open-addressed set for non-zero 32-bit txn IDs. */
+    private static final class IntHashSet {
+        private int[] table = new int[256];
+        private int size;
+        private int threshold = 128;
+
+        boolean contains(int key) {
+            int[] tab = table;
+            int mask = tab.length - 1;
+            int idx = mix32(key) & mask;
+            while (true) {
+                int cur = tab[idx];
+                if (cur == 0) return false;
+                if (cur == key) return true;
+                idx = (idx + 1) & mask;
+            }
+        }
+
+        void add(int key) {
+            int[] tab = table;
+            int mask = tab.length - 1;
+            int idx = mix32(key) & mask;
+            while (true) {
+                int cur = tab[idx];
+                if (cur == 0) {
+                    tab[idx] = key;
+                    if (++size >= threshold) {
+                        rehash();
+                    }
+                    return;
+                }
+                if (cur == key) {
+                    return;
+                }
+                idx = (idx + 1) & mask;
+            }
+        }
+
+        private void rehash() {
+            int[] oldTab = table;
+            int newCap = oldTab.length << 1;
+            int[] newTab = new int[newCap];
+            int mask = newCap - 1;
+            for (int key : oldTab) {
+                if (key != 0) {
+                    int idx = mix32(key) & mask;
+                    while (newTab[idx] != 0) {
+                        idx = (idx + 1) & mask;
+                    }
+                    newTab[idx] = key;
+                }
+            }
+            table = newTab;
+            threshold = newCap >>> 1;
+        }
+
+        private static int mix32(int h) {
+            h ^= h >>> 16;
+            h *= 0x85ebca6b;
+            h ^= h >>> 13;
+            h *= 0xc2b2ae35;
+            h ^= h >>> 16;
+            return h;
+        }
+    }
+
+    /** Compact open-addressed String set for transaction read sets. */
+    private static final class StringHashSet {
+        String[] table = new String[16];
+        private int size;
+        private int threshold = 8;
+
+        void add(String key) {
+            String[] tab = table;
+            int mask = tab.length - 1;
+            int idx = mixHash(key.hashCode()) & mask;
+            while (true) {
+                String cur = tab[idx];
+                if (cur == null) {
+                    tab[idx] = key;
+                    if (++size >= threshold) {
+                        rehash();
+                    }
+                    return;
+                }
+                if (cur.equals(key)) {
+                    return;
+                }
+                idx = (idx + 1) & mask;
+            }
+        }
+
+        private void rehash() {
+            String[] oldTab = table;
+            int newCap = oldTab.length << 1;
+            String[] newTab = new String[newCap];
+            int mask = newCap - 1;
+            for (String key : oldTab) {
+                if (key != null) {
+                    int idx = mixHash(key.hashCode()) & mask;
+                    while (newTab[idx] != null) {
+                        idx = (idx + 1) & mask;
+                    }
+                    newTab[idx] = key;
+                }
+            }
+            table = newTab;
+            threshold = newCap >>> 1;
+        }
+
+        private static int mixHash(int h) {
+            return h ^ (h >>> 16);
+        }
+    }
+
+    /** Compact parallel-array list of [lo, hi] read ranges. */
+    private static final class RangeList {
+        String[] los = new String[8];
+        String[] his = new String[8];
+        int size;
+
+        void add(String lo, String hi) {
+            if (size > 0 && lo.equals(los[size - 1]) && hi.equals(his[size - 1])) {
+                return;
+            }
+            if (size == los.length) {
+                int newCap = size << 1;
+                los = Arrays.copyOf(los, newCap);
+                his = Arrays.copyOf(his, newCap);
+            }
+            los[size] = lo;
+            his[size] = hi;
+            size++;
+        }
+    }
+
+    /** Unmodifiable List<Long> backed by primitive unsigned 32-bit ints. */
+    private static final class UnsignedIntList extends AbstractList<Long> implements RandomAccess {
+        private int[] data = new int[32];
+        private int size;
+
+        void addInt(int value) {
+            if (size == data.length) {
+                data = Arrays.copyOf(data, size << 1);
+            }
+            data[size++] = value;
+        }
+
+        @Override
+        public Long get(int index) {
+            Objects.checkIndex(index, size);
+            return Integer.toUnsignedLong(data[index]);
+        }
+
+        @Override
+        public int size() {
+            return size;
+        }
+    }
+
+    public record Result(Map<String, String> state,
+                         List<Long> committed,
+                         List<Long> aborted,
+                         List<Long> incomplete,
+                         int validLength,
+                         boolean tornTail) {}
+
+    public enum Code {
+        BAD_MAGIC, UNKNOWN_TYPE, RECORD_TOO_LARGE, CHECKSUM_MISMATCH,
+        MALFORMED_PAYLOAD, BAD_TXN_ID, BAD_KEY, BAD_VALUE,
+        DUPLICATE_TXN, TOO_MANY_OPEN, TXN_NOT_OPEN,
+        TXN_TOO_LARGE, BAD_NAME, NO_SAVEPOINT,
+        CHECKPOINT_MISMATCH, READ_MISMATCH, RANGE_MISMATCH
+    }
+
+    public static final class WalException extends Exception {
+        private final Code code;
+        private final int offset;
+        public WalException(Code code, int offset) {
+            super(code + "@" + offset);
+            this.code = code;
+            this.offset = offset;
+        }
+        public Code code() { return code; }
+        public int offset() { return offset; }
+    }
+}

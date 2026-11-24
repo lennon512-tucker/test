@@ -8,3 +8,6 @@ results_new*/
 .env
 .gemini_api_key
 .oneprovider_api_key
+work/scratch/fuzz/*.txt
+work/scratch/fuzz/*.bin
+work/scratch/fuzz/*/

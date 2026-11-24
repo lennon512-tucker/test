@@ -41,3 +41,13 @@ H162 (all four) and H151 (1 and 5) — independent agreement with the hand-deriv
 
 Note on test selection: H151 and H162 were written after seeing these pilot failures. They test stated
 rules (R22 wording; §2 limits and test shapes) and are hand-derived; the official run uses fresh attempts.
+
+## 5. Round 6: fresh pilot on the audited v5 (round6_v5, 5 attempts; attempts 2-5 resumed with --first 2)
+All 5 attempts pass every test (public 5/5, hidden 173/173). Output 39k-49k tokens each (round 5: ~12k).
+Guided differential fuzz (30000 logs, Guide2 with RANGE): 0 disagreements. Stress A-G: all 5 in 0.4-1.2 s.
+Memory probe inside the stated shapes (one or three long-lived snapshots, 200000-key state rewritten by
+~300000 commits, then range counts; 15-16 MB, -Xmx512m): all 5 OK in 1.2-1.7 s.
+=> 0/5 failing. The audit's fairness fixes (V3: the shapes of the large tests stated in §2; V4: the exact
+conflict window in R22) removed exactly the two failure modes seen in round 5 (H162 timeouts, H151 phantom
+bug); with them stated, Carbon writes persistent/versioned structures and is correct and fast.
+Freeze condition not met; PROMPT.md stays DRAFT v5.
