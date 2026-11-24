@@ -10,6 +10,9 @@ apply to no record. Their bytes and expected lines are unchanged. Example 4 (sav
 bytes come from `encode_examples.py` (ex4, encode only), `check_prompt_hex.py` confirms the PROMPT.md hex, and every
 checksum and the outcome were re-derived by hand below (section 0.6 and "Example 4").
 
+v3 audit (2026-11-24): wording fixes only (spec-audit.md, "v3 audit"). Example 4 re-derived by hand and its bytes
+rebuilt with the separate encode-only script `work/scratch/p8a/ex4_encode.py`: unchanged.
+
 P2 audit (2026-11-24): the P2 edits changed wording only; rule numbers (R1-R27, P1-P5), example bytes and expected
 outcomes are unchanged. All three outcomes were re-derived by hand independently, and every record's hex, offset and
 checksum was re-checked with the separate script `work/scratch/p2_verify_examples.py`. No changes needed below.

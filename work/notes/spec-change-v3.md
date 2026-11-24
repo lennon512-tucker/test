@@ -2,7 +2,7 @@
 
 Date: 2026-11-24. Reason: pilot round 1 (Gemini web app, "Hydrogen"), attempt 1 passed every test (public 3/3,
 hidden 69/69). The user chose to add two hardening levers from PLAN.md §4.7 at once: L1 and L2.
-Status: PROMPT.md DRAFT v3, not yet audited. PROMPT.md is 401 lines (was 346).
+Status: PROMPT.md DRAFT v3 (audited: wording fixes V1-V10, see spec-audit.md "v3 audit"). PROMPT.md is 401 lines (was 346).
 
 ## 1. Design decisions
 
@@ -126,3 +126,8 @@ Example 4 byte for byte.
 - python3 runner/selftest.py: 10/10 OK (Example 4 hex = LogBuilder output = P04 input, byte for byte).
 - python3 runner/run.py --test ../work/scratch/stub/WalRecovery.java: public 0/4, hidden 0/69, all 73 FAIL with
   THROW java.lang.UnsupportedOperationException (compile and run ok).
+
+## Affected by v3 audit
+
+The v3 audit (work/notes/spec-audit.md, "v3 audit", findings V1-V10) made wording fixes only. No rule now gives a
+different outcome for any existing test: **none**. (H11 and H20 remain affected by v3 itself, see section 4.)
