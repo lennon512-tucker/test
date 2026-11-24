@@ -4,7 +4,7 @@ import argparse, datetime, hashlib, json, os, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
-import gemini, extract
+import gemini, extract, javatest
 
 
 def load_config():
@@ -80,7 +80,13 @@ def main():
         if not a.out:
             ap.error("--fresh needs --out")
         gemini_attempts(a.out, a.attempts or cfg["attempts"], cfg)
-    elif a.test or a.mutants:
+    elif a.test:
+        if not os.path.isfile(a.test):
+            sys.exit("no such file: %s" % a.test)
+        res = javatest.test_solution(a.test, "adhoc")
+        javatest.print_report(res)
+        sys.exit(0 if all(t["status"] == "PASS" for t in res["tests"]) else 1)
+    elif a.mutants:
         sys.exit("not implemented yet (later session)")
     else:
         sys.exit("offline default mode not implemented yet (later session)")
