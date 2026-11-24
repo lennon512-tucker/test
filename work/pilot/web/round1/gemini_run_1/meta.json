@@ -1,0 +1,10 @@
+{
+  "attempt": 1,
+  "folder": "gemini_run_1",
+  "source": "Gemini web app (gemini.google.com)",
+  "mode": "Chat",
+  "model_as_shown_in_app": "Hydrogen",
+  "date": "2026-11-24",
+  "settings": "app defaults; memory/personal context off; new chat per attempt",
+  "prompt_sha256": "38b10283cc9419518658e153f9f861af58cebafd7f2ca3b722810d8e72c20872"
+}

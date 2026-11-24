@@ -1,0 +1,4 @@
+public: 3 / 3 passed
+hidden: 69 / 69 passed
+
+TOTAL: 72 / 72 passed
