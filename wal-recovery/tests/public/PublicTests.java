@@ -15,12 +15,14 @@ public final class PublicTests {
         // Derivation (bytes and outcome are PROMPT.md section 11, Example 1):
         //   1. Header ok (R4). 12 records: BEGIN 1 @4, BEGIN 2 @13, PUT 1 a=1 @22, PUT 2 a=2 @36,
         //      PUT 2 b=x @50, COMMIT 2 @64, BEGIN 3 @73, PUT 3 b=y @82, COMMIT 1 @96, ABORT 3 @105,
-        //      BEGIN 4 @114, DELETE 4 a @123 (N = 6, ends 134). Each: type 1-5, N <= 1024, fits,
-        //      correct checksum (e.g. PUT @22: s2 54 = 36, s1 160 = A0) -> intact (R11).
+        //      BEGIN 4 @114, DELETE 4 a @123 (N = 6, ends 134). Each: type 1-5 (valid, R7 allows
+        //      1-7), N <= 1024, fits, correct checksum (e.g. PUT @22: s2 54 = 36, s1 160 = A0)
+        //      -> intact (R11).
         //   2. p = 134 = L (R5): validLength = 134, tornTail = false.
-        //   3. Phase 2: every record passes R13-R19. COMMIT 2 applies a=2, b=x; COMMIT 1 then sets
-        //      a=1 (R22, commit order); ABORT 3 drops b=y (R23); txn 4 stays open, its DELETE is
-        //      never applied. committed [2, 1], aborted [3], incomplete [4] (R25, R26).
+        //   3. Phase 2: every record passes R13-R19b (at most 2 writes per txn, so R19a never
+        //      fails). COMMIT 2 applies a=2, b=x; COMMIT 1 then sets a=1 (R22, commit order);
+        //      ABORT 3 drops b=y (R23); txn 4 stays open, its DELETE is never applied.
+        //      committed [2, 1], aborted [3], incomplete [4] (R25, R26).
         // Expected: OK state={"a"="1", "b"="x"} committed=[2, 1] aborted=[3] incomplete=[4] validLength=134 tornTail=false
         c.add(TestCase.of("P01", "example1_interleaved_transactions", "R5,R22,R23,R26", Hex.bytes(
                 "57 41 4C 31"

@@ -3,15 +3,17 @@ import java.util.List;
 
 /**
  * Hidden tests. Every expected line is a literal worked out by hand from task/PROMPT.md; the
- * derivation is written next to each test. Rule numbers (R1-R27, P1-P5) are those of PROMPT.md.
+ * derivation is written next to each test. Rule numbers (R1-R27 with R16a, R19a, R19b, R23a, R23b,
+ * and P1-P5) are those of PROMPT.md DRAFT v3.
  *
  * Conventions in the derivations:
  *   - "rec X @p, size s, ends e" gives the offset of the type byte, the record size 5 + N and
  *     the end offset p + 5 + N.
  *   - Checksums are written "s2 s1" (stored order, PROMPT.md 5.4). Checksums of short records
  *     come with their s1/s2 trace or are taken from PROMPT.md section 11 (Example 1 or 2).
- *   - Phase 1 at each p runs R5, R6, R7, R8, R9, R10, R11 in that order; phase 2 runs R13-R19,
- *     then the action R20-R23.
+ *   - Phase 1 at each p runs R5, R6, R7, R8, R9, R10, R11 in that order; phase 2 runs R13, R14,
+ *     R15, R16, R16a, R17, R18, R19, R19a, R19b (each only for the types it names), then the
+ *     action R20-R23b.
  *   - LogBuilder.record()/begin()/put()/... write the true N and the correct checksum (checked
  *     against the PROMPT.md hex in runner/selftest.py). corruptLastChecksum() XORs both stored
  *     checksum bytes with 01, so the stored value always differs from the correct one (PLAN.md
@@ -20,7 +22,8 @@ import java.util.List;
  * Groups: A header (H01-H06), B framing and tail (H07-H20), C checksum details (H21-H24),
  * D payload structure (H25-H31), E field checks (H32-H40), F transactions (H41-H52),
  * G precedence and interactions (H53-H61), H API contract (H62-H63),
- * I coverage gaps found by the P7 audit (H64-H69).
+ * I coverage gaps found by the P7 audit (H64-H69), J write limit L1 (H70-H77),
+ * K savepoints L2 (H78-H99).
  */
 public final class HiddenTests {
     private HiddenTests() {}
@@ -144,7 +147,7 @@ public final class HiddenTests {
         // Derivation:
         //   1. Header ok. BEGIN 1 @4, size 9, ends 13 (1C 06). Then bytes 09 00 00 @13. L = 16.
         //   2. p = 4: intact as in H08 (R9 13 <= 16), p = 13.
-        //   3. p = 13: R5 13 != 16; R6 L-p = 3, not 1 or 2; R7 type byte 09 is not 1..5 ->
+        //   3. p = 13: R5 13 != 16; R6 L-p = 3, not 1 or 2; R7 type byte 09 is not 1..7 ->
         //      throw UNKNOWN_TYPE at 13.
         // Expected: ERR UNKNOWN_TYPE@13
         c.add(TestCase.of("H09", "tail_three_leftover_bytes_unknown_type_is_error", "R6,R7",
@@ -159,24 +162,25 @@ public final class HiddenTests {
         //      correct checksum (00 00 04 00 00 00 01; s1 0,0,4,4,4,4,5; s2 0,0,4,8,12,16,21
         //      -> 15 05). COMMIT 1 @22, size 9, ends 31 (31 09). L = 31.
         //   2. p = 4: intact (R9 13 <= 31, R10 correct), p = 13.
-        //   3. p = 13: R5 no; R6 L-p = 18; R7 type 0 is not 1..5 -> throw UNKNOWN_TYPE at 13.
+        //   3. p = 13: R5 no; R6 L-p = 18; R7 type 0 is not 1..7 -> throw UNKNOWN_TYPE at 13.
         //      (Frame size and checksum are fine; only the type is wrong.)
         // Expected: ERR UNKNOWN_TYPE@13
         c.add(TestCase.of("H10", "frame_type_zero_in_middle", "R7",
                 LogBuilder.wal().begin(1).record(0, Hex.bytes("00 00 00 01")).commit(1).build(),
                 "ERR UNKNOWN_TYPE@13"));
 
-        // H11 frame_type_six_first_record
+        // H11 frame_type_eight_first_record
         // Rules: R7
-        // Derivation:
-        //   1. Header ok. Record @4: type 06, N = 4, payload 00 00 00 01, size 9, ends 13,
-        //      correct checksum (06 00 04 00 00 00 01; s1 6,6,10,10,10,10,11;
-        //      s2 6,12,22,32,42,52,63 -> 3F 0B). BEGIN 1 @13, size 9, ends 22 (1C 06). L = 22.
-        //   2. p = 4: R5 no; R6 L-p = 18; R7 type 6 is not 1..5 (one above ABORT = 5) ->
-        //      throw UNKNOWN_TYPE at 4.
+        // Derivation (re-derived for PROMPT.md v3, where types 6 and 7 are SAVEPOINT and ROLLBACK;
+        // v2 used type 6 here):
+        //   1. Header ok. Record @4: type 08, N = 4, payload 00 00 00 01, size 9, ends 13,
+        //      correct checksum (08 00 04 00 00 00 01; s1 8,8,12,12,12,12,13;
+        //      s2 8,16,28,40,52,64,77 -> 4D 0D). BEGIN 1 @13, size 9, ends 22 (1C 06). L = 22.
+        //   2. p = 4: R5 4 != 22; R6 L-p = 18; R7 type 8 is not 1, 2, 3, 4, 5, 6 or 7 (one above
+        //      ROLLBACK = 7) -> throw UNKNOWN_TYPE at 4.
         // Expected: ERR UNKNOWN_TYPE@4
-        c.add(TestCase.of("H11", "frame_type_six_first_record", "R7",
-                LogBuilder.wal().record(6, Hex.bytes("00 00 00 01")).begin(1).build(),
+        c.add(TestCase.of("H11", "frame_type_eight_first_record", "R7",
+                LogBuilder.wal().record(8, Hex.bytes("00 00 00 01")).begin(1).build(),
                 "ERR UNKNOWN_TYPE@4"));
 
         // H12 tail_payload_cut_short_is_torn
@@ -331,18 +335,20 @@ public final class HiddenTests {
 
         // H20 frame_last_record_unknown_type_bad_checksum_is_error
         // Rules: R7, R10
-        // Derivation:
-        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). Record @13: type 07, N = 4, payload
-        //      00 00 00 01, stored checksum 00 00, size 9, ends 22. Its correct checksum would be
-        //      46 0C (07 00 04 00 00 00 01; s1 7,7,11,11,11,11,12; s2 7,14,25,36,47,58,70), so
-        //      the stored one is wrong. L = 22.
+        // Derivation (re-derived for PROMPT.md v3, where type 7 is ROLLBACK; v2 used type 7 here):
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). Record @13: type 08, N = 4, payload
+        //      00 00 00 01, stored checksum 00 00 (written with frame()), size 9, ends 22. Its
+        //      correct checksum would be 4D 0D (08 00 04 00 00 00 01; s1 8,8,12,12,12,12,13;
+        //      s2 8,16,28,40,52,64,77), so the stored one is wrong. L = 22.
         //   2. p = 4: intact, p = 13.
-        //   3. p = 13: R5 no; R6 L-p = 9; R7 type 7 is not 1..5 -> throw UNKNOWN_TYPE at 13.
-        //      R7 comes before R10, so the torn tail that R10 would give (ends at 22 = L) is
-        //      never reached.
+        //   3. p = 13: R5 13 != 22; R6 L-p = 9; R7 type 8 is not 1..7 -> throw UNKNOWN_TYPE at 13.
+        //      R7 comes before R10, so the torn tail that R10 would give (wrong checksum,
+        //      13+5+4 = 22 = L) is never reached (section 7.2: "R7 and R8 apply to every record
+        //      with at least 3 bytes left at p, including ... a last record whose checksum is
+        //      wrong (R10)").
         // Expected: ERR UNKNOWN_TYPE@13
         c.add(TestCase.of("H20", "frame_last_record_unknown_type_bad_checksum_is_error", "R7,R10",
-                LogBuilder.wal().begin(1).frame(7, 4, Hex.bytes("00 00 00 01"), 0x0000).build(),
+                LogBuilder.wal().begin(1).frame(8, 4, Hex.bytes("00 00 00 01"), 0x0000).build(),
                 "ERR UNKNOWN_TYPE@13"));
 
         // =====================================================================================
@@ -654,7 +660,7 @@ public final class HiddenTests {
                 "ERR MALFORMED_PAYLOAD@13"));
 
         // =====================================================================================
-        // Group E: field checks (R14-R16)
+        // Group E: field checks (R14-R16; R16a is in group K)
         // =====================================================================================
 
         // H32 field_txn_zero_is_bad_txn_id
@@ -801,7 +807,7 @@ public final class HiddenTests {
                 "ERR BAD_VALUE@27"));
 
         // =====================================================================================
-        // Group F: transactions (R17-R26)
+        // Group F: transactions (R17-R26; R19a, R19b, R23a, R23b are in groups J and K)
         // =====================================================================================
 
         // H41 txn_commit_order_not_log_order
@@ -1059,7 +1065,7 @@ public final class HiddenTests {
         //      (R15), txn 0 not open (R19). R13: 11 >= 5, k = 3, 11 >= 10, v = 1, 11 = 7+3+1
         //      ok. R14 txn 0 -> throw BAD_TXN_ID at 13.
         //   4. Deciding rule P4: "Within one record, the first failing check in the order R13,
-        //      R14, R15, R16, R17, R18, R19 decides the code".
+        //      R14, R15, R16, R16a, R17, R18, R19, R19a, R19b decides the code."
         // Expected: ERR BAD_TXN_ID@13
         c.add(TestCase.of("H55", "prec_bad_txn_id_before_bad_key_same_record", "P4,R14,R15",
                 LogBuilder.wal().begin(1).put(0, "a b", "1").commit(1).build(),
@@ -1074,8 +1080,8 @@ public final class HiddenTests {
         //   3. Phase 2: BEGIN 1 opens. PUT @13 has two problems: key byte E9 (R15) and txn 2,
         //      which never had a BEGIN (R19). R13 9 = 7+1+1; R14 txn 2; R15 key byte E9 = 233
         //      > KEY_BYTE_MAX 7E = 126 -> throw BAD_KEY at 13.
-        //   4. Deciding rule P4: "the field checks (R13 to R16) always come before the
-        //      transaction checks (R17 to R19)".
+        //   4. Deciding rule P4: "So the field checks (R13 to R16a) always come before the
+        //      transaction checks (R17 to R19b)."
         // Expected: ERR BAD_KEY@13
         c.add(TestCase.of("H56", "prec_bad_key_before_txn_not_open", "P4,R15,R19",
                 LogBuilder.wal().begin(1).put(2, "\u00E9", "1").commit(1).build(),
@@ -1091,8 +1097,8 @@ public final class HiddenTests {
         //      1, 2, 3 open before each). BEGIN 5 @58 has two problems: txn 5 was used by the
         //      BEGIN @4 (R17, aborted id) and 4 transactions are open (R18). R13, R14 ok;
         //      R17 -> throw DUPLICATE_TXN at 58.
-        //   4. Deciding rule P4: "for a BEGIN record DUPLICATE_TXN (R17) comes before
-        //      TOO_MANY_OPEN (R18)".
+        //   4. Deciding rule P4: "For a BEGIN record, DUPLICATE_TXN (R17) comes before
+        //      TOO_MANY_OPEN (R18)."
         // Expected: ERR DUPLICATE_TXN@58
         c.add(TestCase.of("H57", "prec_duplicate_before_too_many_open", "P4,R17,R18",
                 LogBuilder.wal().begin(5).abort(5).begin(1).begin(2).begin(3).begin(4).begin(5)
@@ -1166,7 +1172,7 @@ public final class HiddenTests {
         //   2. Phase 1: all intact; p = 45 = L (R5).
         //   3. Phase 2: BEGIN 1 opens. COMMIT @13: R13 N = 4; R14 txn 2; R19 txn 2 never had a
         //      BEGIN -> throw TXN_NOT_OPEN at 13. The PUT @22 would fail R16 (BAD_VALUE),
-        //      a check that comes earlier in the R13-R19 order, but it is a later record.
+        //      a check that comes earlier in the R13 to R19b order, but it is a later record.
         //   4. Deciding rule P4: "In phase 2, the first record in log order that fails a check
         //      decides the error."
         // Expected: ERR TXN_NOT_OPEN@13
@@ -1312,8 +1318,8 @@ public final class HiddenTests {
         //      problems: txn 0 (R14) and 4 = MAX_OPEN_TXNS transactions open (R18).
         //      R13 N = 4 ok; R14 txn = 0 -> throw BAD_TXN_ID at 40.
         //   4. Deciding rule P4: "Within one record, the first failing check in the order R13,
-        //      R14, R15, R16, R17, R18, R19 decides the code, so the field checks (R13 to R16)
-        //      always come before the transaction checks (R17 to R19)".
+        //      R14, R15, R16, R16a, R17, R18, R19, R19a, R19b decides the code. So the field
+        //      checks (R13 to R16a) always come before the transaction checks (R17 to R19b)."
         // Expected: ERR BAD_TXN_ID@40
         c.add(TestCase.of("H68", "prec_bad_txn_id_before_too_many_open", "P4,R14,R18",
                 LogBuilder.wal().begin(1).begin(2).begin(3).begin(4).begin(0).build(),
@@ -1329,12 +1335,818 @@ public final class HiddenTests {
         //   3. Phase 2: BEGIN 1 opens. PUT @13 has two problems: value byte 0A (R16) and txn 9,
         //      which never had a BEGIN (R19). R13 9 = 7+1+1 ok; R14 txn 9 != 0; R15 key 61 ok;
         //      R16 value byte 0A < VALUE_BYTE_MIN 20 -> throw BAD_VALUE at 13.
-        //   4. Deciding rule P4: "the field checks (R13 to R16) always come before the
-        //      transaction checks (R17 to R19)".
+        //   4. Deciding rule P4: "So the field checks (R13 to R16a) always come before the
+        //      transaction checks (R17 to R19b)."
         // Expected: ERR BAD_VALUE@13
         c.add(TestCase.of("H69", "prec_bad_value_before_txn_not_open", "P4,R16,R19",
                 LogBuilder.wal().begin(1).put(9, "a", "\n").commit(1).build(),
                 "ERR BAD_VALUE@13"));
+
+
+        // =====================================================================================
+        // Groups J (write limit L1, H70-H77) and K (savepoints L2, H78-H99): added in the P8
+        // hardening for PROMPT.md DRAFT v3 (rules R16a, R19a, R19b, R23a, R23b; traps T18-T26 in
+        // work/notes/spec-change-v3.md section 5).
+        // Notation: "list1" is txn 1's write list (R20, R21). "sp1 {s: 2 @61}" means txn 1 has
+        // the savepoint named s (byte 73) with position 2, set by the SAVEPOINT record at offset
+        // 61 (R23a). Names: s = 73, t = 74, x = 78, y = 79, z = 7A, q = 71 (all in 21..7E).
+        // Record sizes: BEGIN, COMMIT, ABORT 9 (N = 4); PUT with 1-byte key and 1-byte value 14
+        // (N = 9); DELETE with 1-byte key 11 (N = 6); SAVEPOINT, ROLLBACK 10 (N = 5).
+        // Phase-2 checks per type (PROMPT.md 7.3): PUT R13, R14, R15, R16, R19, R19a; DELETE R13,
+        // R14, R15, R19, R19a; SAVEPOINT R13, R14, R16a, R19; ROLLBACK R13, R14, R16a, R19, R19b;
+        // BEGIN R13, R14, R17, R18; COMMIT/ABORT R13, R14, R19.
+        // Checksums already traced above or in PROMPT.md: BEGIN 1 1C 06, BEGIN 2 1D 07,
+        // COMMIT 1 31 09, COMMIT 2 32 0A, PUT 1 a=1 36 A0, PUT 1 b=2 3B A2, PUT 1 c=3 40 A4
+        // (Example 4), PUT 2 b=2 41 A3, DELETE 1 a AB 6C, SP 1 73 C3 7F and RB 1 73 CB 80
+        // (Example 4). New records (covered bytes type, N, payload; s1 and s2 traces; stored
+        // s2 s1), typed from work/scratch/p8t/fletcher.py (Fletcher-16 arithmetic only):
+        //   ABORT 1      05 00 04 00 00 00 01
+        //                s1 5,5,9,9,9,9,10
+        //                s2 5,10,19,28,37,46,56 -> 38 0A
+        //   PUT 1 a=2    02 00 09 00 00 00 01 01 61 00 01 32
+        //                s1 2,2,11,11,11,11,12,13,110,110,111,161
+        //                s2 2,4,15,26,37,48,60,73,183,38,149,55 -> 37 A1
+        //   PUT 1 a=3    02 00 09 00 00 00 01 01 61 00 01 33
+        //                s1 2,2,11,11,11,11,12,13,110,110,111,162
+        //                s2 2,4,15,26,37,48,60,73,183,38,149,56 -> 38 A2
+        //   PUT 1 a=4    02 00 09 00 00 00 01 01 61 00 01 34
+        //                s1 2,2,11,11,11,11,12,13,110,110,111,163
+        //                s2 2,4,15,26,37,48,60,73,183,38,149,57 -> 39 A3
+        //   PUT 1 a=5    02 00 09 00 00 00 01 01 61 00 01 35
+        //                s1 2,2,11,11,11,11,12,13,110,110,111,164
+        //                s2 2,4,15,26,37,48,60,73,183,38,149,58 -> 3A A4
+        //   PUT 1 a=6    02 00 09 00 00 00 01 01 61 00 01 36
+        //                s1 2,2,11,11,11,11,12,13,110,110,111,165
+        //                s2 2,4,15,26,37,48,60,73,183,38,149,59 -> 3B A5
+        //   PUT 1 a=7    02 00 09 00 00 00 01 01 61 00 01 37
+        //                s1 2,2,11,11,11,11,12,13,110,110,111,166
+        //                s2 2,4,15,26,37,48,60,73,183,38,149,60 -> 3C A6
+        //   PUT 1 a=8    02 00 09 00 00 00 01 01 61 00 01 38
+        //                s1 2,2,11,11,11,11,12,13,110,110,111,167
+        //                s2 2,4,15,26,37,48,60,73,183,38,149,61 -> 3D A7
+        //   PUT 1 a=9    02 00 09 00 00 00 01 01 61 00 01 39
+        //                s1 2,2,11,11,11,11,12,13,110,110,111,168
+        //                s2 2,4,15,26,37,48,60,73,183,38,149,62 -> 3E A8
+        //   PUT 1 d=4    02 00 09 00 00 00 01 01 64 00 01 34
+        //                s1 2,2,11,11,11,11,12,13,113,113,114,166
+        //                s2 2,4,15,26,37,48,60,73,186,44,158,69 -> 45 A6
+        //   PUT 1 e=5    02 00 09 00 00 00 01 01 65 00 01 35
+        //                s1 2,2,11,11,11,11,12,13,114,114,115,168
+        //                s2 2,4,15,26,37,48,60,73,187,46,161,74 -> 4A A8
+        //   PUT 1 f=6    02 00 09 00 00 00 01 01 66 00 01 36
+        //                s1 2,2,11,11,11,11,12,13,115,115,116,170
+        //                s2 2,4,15,26,37,48,60,73,188,48,164,79 -> 4F AA
+        //   PUT 1 g=7    02 00 09 00 00 00 01 01 67 00 01 37
+        //                s1 2,2,11,11,11,11,12,13,116,116,117,172
+        //                s2 2,4,15,26,37,48,60,73,189,50,167,84 -> 54 AC
+        //   PUT 1 h=8    02 00 09 00 00 00 01 01 68 00 01 38
+        //                s1 2,2,11,11,11,11,12,13,117,117,118,174
+        //                s2 2,4,15,26,37,48,60,73,190,52,170,89 -> 59 AE
+        //   PUT 1 i=9    02 00 09 00 00 00 01 01 69 00 01 39
+        //                s1 2,2,11,11,11,11,12,13,118,118,119,176
+        //                s2 2,4,15,26,37,48,60,73,191,54,173,94 -> 5E B0
+        //   PUT 1 j=0    02 00 09 00 00 00 01 01 6A 00 01 30
+        //                s1 2,2,11,11,11,11,12,13,119,119,120,168
+        //                s2 2,4,15,26,37,48,60,73,192,56,176,89 -> 59 A8
+        //   PUT 1 k=1    02 00 09 00 00 00 01 01 6B 00 01 31
+        //                s1 2,2,11,11,11,11,12,13,120,120,121,170
+        //                s2 2,4,15,26,37,48,60,73,193,58,179,94 -> 5E AA
+        //   PUT 1 b=5    02 00 09 00 00 00 01 01 62 00 01 35
+        //                s1 2,2,11,11,11,11,12,13,111,111,112,165
+        //                s2 2,4,15,26,37,48,60,73,184,40,152,62 -> 3E A5
+        //   PUT 1 c=4    02 00 09 00 00 00 01 01 63 00 01 34
+        //                s1 2,2,11,11,11,11,12,13,112,112,113,165
+        //                s2 2,4,15,26,37,48,60,73,185,42,155,65 -> 41 A5
+        //   PUT 1 i=7F   02 00 09 00 00 00 01 01 69 00 01 7F
+        //                s1 2,2,11,11,11,11,12,13,118,118,119,246
+        //                s2 2,4,15,26,37,48,60,73,191,54,173,164 -> A4 F6
+        //   PUT 2 z=0    02 00 09 00 00 00 02 01 7A 00 01 30
+        //                s1 2,2,11,11,11,11,13,14,136,136,137,185
+        //                s2 2,4,15,26,37,48,61,75,211,92,229,159 -> 9F B9
+        //   PUT 2 a=1    02 00 09 00 00 00 02 01 61 00 01 31
+        //                s1 2,2,11,11,11,11,13,14,111,111,112,161
+        //                s2 2,4,15,26,37,48,61,75,186,42,154,60 -> 3C A1
+        //   PUT 2 c=3    02 00 09 00 00 00 02 01 63 00 01 33
+        //                s1 2,2,11,11,11,11,13,14,113,113,114,165
+        //                s2 2,4,15,26,37,48,61,75,188,46,160,70 -> 46 A5
+        //   PUT 2 b=1    02 00 09 00 00 00 02 01 62 00 01 31
+        //                s1 2,2,11,11,11,11,13,14,112,112,113,162
+        //                s2 2,4,15,26,37,48,61,75,187,44,157,64 -> 40 A2
+        //   DELETE 1 b   03 00 06 00 00 00 01 01 62
+        //                s1 3,3,9,9,9,9,10,11,109
+        //                s2 3,6,15,24,33,42,52,63,172 -> AC 6D
+        //   DELETE 1 d   03 00 06 00 00 00 01 01 64
+        //                s1 3,3,9,9,9,9,10,11,111
+        //                s2 3,6,15,24,33,42,52,63,174 -> AE 6F
+        //   DELETE 1 f   03 00 06 00 00 00 01 01 66
+        //                s1 3,3,9,9,9,9,10,11,113
+        //                s2 3,6,15,24,33,42,52,63,176 -> B0 71
+        //   DELETE 1 h   03 00 06 00 00 00 01 01 68
+        //                s1 3,3,9,9,9,9,10,11,115
+        //                s2 3,6,15,24,33,42,52,63,178 -> B2 73
+        //   SP 1 74      06 00 05 00 00 00 01 74
+        //                s1 6,6,11,11,11,11,12,128
+        //                s2 6,12,23,34,45,56,68,196 -> C4 80
+        //   SP 1 78      06 00 05 00 00 00 01 78
+        //                s1 6,6,11,11,11,11,12,132
+        //                s2 6,12,23,34,45,56,68,200 -> C8 84
+        //   SP 1 79      06 00 05 00 00 00 01 79
+        //                s1 6,6,11,11,11,11,12,133
+        //                s2 6,12,23,34,45,56,68,201 -> C9 85
+        //   SP 1 7A      06 00 05 00 00 00 01 7A
+        //                s1 6,6,11,11,11,11,12,134
+        //                s2 6,12,23,34,45,56,68,202 -> CA 86
+        //   SP 1 21      06 00 05 00 00 00 01 21
+        //                s1 6,6,11,11,11,11,12,45
+        //                s2 6,12,23,34,45,56,68,113 -> 71 2D
+        //   SP 1 7E      06 00 05 00 00 00 01 7E
+        //                s1 6,6,11,11,11,11,12,138
+        //                s2 6,12,23,34,45,56,68,206 -> CE 8A
+        //   SP 1 20      06 00 05 00 00 00 01 20
+        //                s1 6,6,11,11,11,11,12,44
+        //                s2 6,12,23,34,45,56,68,112 -> 70 2C
+        //   SP 2 73      06 00 05 00 00 00 02 73
+        //                s1 6,6,11,11,11,11,13,128
+        //                s2 6,12,23,34,45,56,69,197 -> C5 80
+        //   SP 2 7F      06 00 05 00 00 00 02 7F
+        //                s1 6,6,11,11,11,11,13,140
+        //                s2 6,12,23,34,45,56,69,209 -> D1 8C
+        //   RB 1 74      07 00 05 00 00 00 01 74
+        //                s1 7,7,12,12,12,12,13,129
+        //                s2 7,14,26,38,50,62,75,204 -> CC 81
+        //   RB 1 78      07 00 05 00 00 00 01 78
+        //                s1 7,7,12,12,12,12,13,133
+        //                s2 7,14,26,38,50,62,75,208 -> D0 85
+        //   RB 1 79      07 00 05 00 00 00 01 79
+        //                s1 7,7,12,12,12,12,13,134
+        //                s2 7,14,26,38,50,62,75,209 -> D1 86
+        //   RB 1 7A      07 00 05 00 00 00 01 7A
+        //                s1 7,7,12,12,12,12,13,135
+        //                s2 7,14,26,38,50,62,75,210 -> D2 87
+        //   RB 1 7E      07 00 05 00 00 00 01 7E
+        //                s1 7,7,12,12,12,12,13,139
+        //                s2 7,14,26,38,50,62,75,214 -> D6 8B
+        //   RB 1 7F      07 00 05 00 00 00 01 7F
+        //                s1 7,7,12,12,12,12,13,140
+        //                s2 7,14,26,38,50,62,75,215 -> D7 8C
+        //   RB 1 71      07 00 05 00 00 00 01 71
+        //                s1 7,7,12,12,12,12,13,126
+        //                s2 7,14,26,38,50,62,75,201 -> C9 7E
+        //   RB 2 73      07 00 05 00 00 00 02 73
+        //                s1 7,7,12,12,12,12,14,129
+        //                s2 7,14,26,38,50,62,76,205 -> CD 81
+        //   RB 0 20      07 00 05 00 00 00 00 20
+        //                s1 7,7,12,12,12,12,12,44
+        //                s2 7,14,26,38,50,62,74,118 -> 76 2C
+        //   SP N=4       06 00 04 00 00 00 01
+        //                s1 6,6,10,10,10,10,11
+        //                s2 6,12,22,32,42,52,63 -> 3F 0B
+        //   SP N=6       06 00 06 00 00 00 01 20 73
+        //                s1 6,6,12,12,12,12,13,45,160
+        //                s2 6,12,24,36,48,60,73,118,23 -> 17 A0
+        //   RB N=6       07 00 06 00 00 00 01 73 73
+        //                s1 7,7,13,13,13,13,14,129,244
+        //                s2 7,14,27,40,53,66,80,209,198 -> C6 F4
+        //   RB N=4       07 00 04 00 00 00 01
+        //                s1 7,7,11,11,11,11,12
+        //                s2 7,14,25,36,47,58,70 -> 46 0C
+        // A correct checksum only lets a record pass R10; no expected line below depends on a
+        // checksum value, except where a test corrupts one (corruptLastChecksum() XORs both
+        // stored bytes with 01).
+        // =====================================================================================
+
+        // =====================================================================================
+        // Group J: write limit L1 (MAX_WRITES = 8, R19a)
+        // =====================================================================================
+
+        // H70 l1_exactly_8_writes_then_commit_ok
+        // Rules: R19a, R21, R22; Not errors item 10
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). BEGIN 2 @13, ends 22 (1D 07).
+        //      PUT 2 "z"="0" @22, ends 36 (9F B9).
+        //      PUT 1 a=1 @36 e50 (36 A0), b=2 @50 e64 (3B A2), c=3 @64 e78 (40 A4), d=4 @78 e92
+        //      (45 A6), e=5 @92 e106 (4A A8), f=6 @106 e120 (4F AA), g=7 @120 e134 (54 AC).
+        //      DELETE 1 "a" @134, size 11, ends 145 (AB 6C). COMMIT 1 @145, ends 154 (31 09).
+        //      COMMIT 2 @154, ends 163 (32 0A). L = 163.
+        //   2. Phase 1: all 13 records intact (types 1-4, N <= 9, each fits, checksums correct);
+        //      p = 163 = L (R5): validLength = 163, tornTail = false.
+        //   3. Phase 2: BEGIN 1 (0 open), BEGIN 2 (1 open) open. PUT 2 @22: R19 open, R19a list2
+        //      holds 0 -> list2 [z=0].
+        //      PUT 1 @36 ... @120: R19a list1 holds 0, 1, 2, 3, 4, 5, 6 before each -> 7 writes.
+        //      DELETE 1 @134: R13 6 = 5+1; R14 txn 1; R15 key 61; R19 open; R19a list1 holds 7,
+        //      not 8 -> list1 has 8 writes = MAX_WRITES (Not errors item 10). Txn 2's write is
+        //      not in list1 ("the transaction's write list", R19a), so 9 writes in the log is
+        //      not a problem.
+        //   4. COMMIT 1: a=1, b=2, c=3, d=4, e=5, f=6, g=7, then del a -> {b..g}; committed [1].
+        //      COMMIT 2: z=0; committed [1, 2]. State sorted by key: b, c, d, e, f, g, z.
+        // Expected: OK state={"b"="2", "c"="3", "d"="4", "e"="5", "f"="6", "g"="7", "z"="0"} committed=[1, 2] aborted=[] incomplete=[] validLength=163 tornTail=false
+        c.add(TestCase.of("H70", "l1_exactly_8_writes_then_commit_ok", "R19a,R21,R22",
+                LogBuilder.wal().begin(1).begin(2).put(2, "z", "0")
+                        .put(1, "a", "1").put(1, "b", "2").put(1, "c", "3").put(1, "d", "4")
+                        .put(1, "e", "5").put(1, "f", "6").put(1, "g", "7").del(1, "a")
+                        .commit(1).commit(2).build(),
+                "OK state={\"b\"=\"2\", \"c\"=\"3\", \"d\"=\"4\", \"e\"=\"5\", \"f\"=\"6\", \"g\"=\"7\", \"z\"=\"0\"} committed=[1, 2] aborted=[] incomplete=[] validLength=163 tornTail=false"));
+
+        // H71 l1_ninth_put_same_key_is_too_large
+        // Rules: R19a
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06).
+        //      PUT 1 "a"="1" ... "a"="8" @13, 27, 41, 55, 69, 83, 97, 111 (each size 14; the last
+        //      ends 125; checksums 36 A0, 37 A1, 38 A2, 39 A3, 3A A4, 3B A5, 3C A6, 3D A7).
+        //      PUT 1 "a"="9" @125, ends 139 (3E A8). COMMIT 1 @139, ends 148 (31 09). L = 148.
+        //   2. Phase 1: all 11 intact; p = 148 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens. PUTs @13 ... @111: R19a list1 holds 0 ... 7 before each
+        //      -> 8 writes. PUT @125: R13 9 = 7+1+1; R14 txn 1; R15 key 61; R16 value 39; R19
+        //      open; R19a list1 already holds 8 = MAX_WRITES -> throw TXN_TOO_LARGE at 125.
+        //   4. All 9 PUTs write the key "a"; R19a: "Every PUT and every DELETE in the list counts
+        //      as one write, also when it writes the same key as another write." (Counting
+        //      distinct keys would give 1 and accept the PUT.)
+        // Expected: ERR TXN_TOO_LARGE@125
+        c.add(TestCase.of("H71", "l1_ninth_put_same_key_is_too_large", "R19a",
+                LogBuilder.wal().begin(1).put(1, "a", "1").put(1, "a", "2").put(1, "a", "3")
+                        .put(1, "a", "4").put(1, "a", "5").put(1, "a", "6").put(1, "a", "7")
+                        .put(1, "a", "8").put(1, "a", "9").commit(1).build(),
+                "ERR TXN_TOO_LARGE@125"));
+
+        // H72 l1_ninth_write_delete_is_too_large
+        // Rules: R19a
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06).
+        //      PUT 1 a=1 @13 e27 (36 A0). DELETE 1 b @27 e38 (AC 6D). PUT 1 c=3 @38 e52 (40 A4).
+        //      DELETE 1 d @52 e63 (AE 6F). PUT 1 e=5 @63 e77 (4A A8). DELETE 1 f @77 e88 (B0 71).
+        //      PUT 1 g=7 @88 e102 (54 AC). DELETE 1 h @102 e113 (B2 73).
+        //      DELETE 1 a @113 e124 (AB 6C). COMMIT 1 @124 e133 (31 09). L = 133.
+        //   2. Phase 1: all 11 intact; p = 133 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens. The 8 records @13 ... @102 (4 PUT, 4 DELETE): R19a list1
+        //      holds 0 ... 7 before each -> 8 writes. The DELETEs of b, d, f, h remove keys that
+        //      are in no state; each still is one write ("Every PUT and every DELETE in the list
+        //      counts as one write", R19a).
+        //      DELETE @113: R13 N = 6 >= 5, k = 1, 6 = 5+1; R14 txn 1; R15 key 61; R19 open;
+        //      R19a list1 holds 8 -> throw TXN_TOO_LARGE at 113.
+        // Expected: ERR TXN_TOO_LARGE@113
+        c.add(TestCase.of("H72", "l1_ninth_write_delete_is_too_large", "R19a",
+                LogBuilder.wal().begin(1).put(1, "a", "1").del(1, "b").put(1, "c", "3").del(1, "d")
+                        .put(1, "e", "5").del(1, "f").put(1, "g", "7").del(1, "h").del(1, "a")
+                        .commit(1).build(),
+                "ERR TXN_TOO_LARGE@113"));
+
+        // H73 l1_rollback_frees_room_back_to_8_then_commit
+        // Rules: R19a, R23a, R23b, R22; Not errors items 10 and 11
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06).
+        //      PUT 1 a=1 @13 e27, b=2 @27 e41, c=3 @41 e55, d=4 @55 e69, e=5 @69 e83, f=6 @83 e97
+        //      (36 A0, 3B A2, 40 A4, 45 A6, 4A A8, 4F AA).
+        //      SAVEPOINT 1 s @97, ends 107 (C3 7F). PUT 1 g=7 @107 e121 (54 AC), h=8 @121 e135
+        //      (59 AE). ROLLBACK 1 s @135, ends 145 (CB 80). PUT 1 i=9 @145 e159 (5E B0),
+        //      j=0 @159 e173 (59 A8). COMMIT 1 @173, ends 182 (31 09). L = 182.
+        //   2. Phase 1: all 14 intact (types 1, 2, 6, 7, 4 are all in 1..7); p = 182 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens. PUTs a..f: list1 holds 0..5 before each -> 6 writes.
+        //      SAVEPOINT @97: R13 N = 5; R14 txn 1; R16a 73 in 21..7E; R19 open -> R23a: n = 6,
+        //      no savepoint s yet -> sp1 {s: 6 @97}.
+        //      PUT g, PUT h: R19a list1 holds 6, 7 -> list1 has 8 writes.
+        //      ROLLBACK @135 (list1 holds 8; ROLLBACK is not a write, Not errors item 11):
+        //      R13, R14, R16a, R19 ok; R19b s exists -> R23b: keep the first 6 writes, remove
+        //      g=7 and h=8; no savepoint was set by a record after offset 97; s stays.
+        //      list1 has 6 writes.
+        //      PUT i @145: R19a list1 holds 6 -> 7 writes. PUT j @159: R19a list1 holds 7 -> 8.
+        //      ("a ROLLBACK that removes writes frees room for new writes", R19a; the log has 10
+        //      PUT records for txn 1, Not errors item 10.)
+        //   4. COMMIT 1 applies list1 [a=1, b=2, c=3, d=4, e=5, f=6, i=9, j=0]; g and h are never
+        //      applied. committed [1].
+        // Expected: OK state={"a"="1", "b"="2", "c"="3", "d"="4", "e"="5", "f"="6", "i"="9", "j"="0"} committed=[1] aborted=[] incomplete=[] validLength=182 tornTail=false
+        c.add(TestCase.of("H73", "l1_rollback_frees_room_back_to_8_then_commit", "R19a,R22,R23a,R23b",
+                LogBuilder.wal().begin(1).put(1, "a", "1").put(1, "b", "2").put(1, "c", "3")
+                        .put(1, "d", "4").put(1, "e", "5").put(1, "f", "6").savepoint(1, 0x73)
+                        .put(1, "g", "7").put(1, "h", "8").rollback(1, 0x73)
+                        .put(1, "i", "9").put(1, "j", "0").commit(1).build(),
+                "OK state={\"a\"=\"1\", \"b\"=\"2\", \"c\"=\"3\", \"d\"=\"4\", \"e\"=\"5\", \"f\"=\"6\", \"i\"=\"9\", \"j\"=\"0\"} committed=[1] aborted=[] incomplete=[] validLength=182 tornTail=false"));
+
+        // H74 l1_rollback_frees_room_then_ninth_in_list_is_too_large
+        // Rules: R19a, R23b
+        // Derivation:
+        //   1. Same records as H73 @4 ... @159 (PUT 1 j=0 ends 173), then PUT 1 k=1 @173, ends
+        //      187 (5E AA), and COMMIT 1 @187, ends 196 (31 09). L = 196.
+        //   2. Phase 1: all 15 intact; p = 196 = L (R5).
+        //   3. Phase 2: as in H73, after the PUT j @159 list1 holds 8 writes
+        //      [a, b, c, d, e, f, i, j] (6 kept by the ROLLBACK @135, then i and j).
+        //      PUT k @173: R13 9 = 7+1+1; R14; R15 key 6B; R16 value 31; R19 open; R19a list1
+        //      already holds 8 = MAX_WRITES -> throw TXN_TOO_LARGE at 173.
+        //   (Only 3 PUT records follow the ROLLBACK, so a count that restarts at 0 after a
+        //   ROLLBACK would wrongly accept this PUT; the rule counts the writes in the list.)
+        // Expected: ERR TXN_TOO_LARGE@173
+        c.add(TestCase.of("H74", "l1_rollback_frees_room_then_ninth_in_list_is_too_large", "R19a,R23b",
+                LogBuilder.wal().begin(1).put(1, "a", "1").put(1, "b", "2").put(1, "c", "3")
+                        .put(1, "d", "4").put(1, "e", "5").put(1, "f", "6").savepoint(1, 0x73)
+                        .put(1, "g", "7").put(1, "h", "8").rollback(1, 0x73)
+                        .put(1, "i", "9").put(1, "j", "0").put(1, "k", "1").commit(1).build(),
+                "ERR TXN_TOO_LARGE@173"));
+
+        // H75 l1_savepoint_and_rollback_at_8_writes_ok
+        // Rules: R19a, R23a, R23b, R22; Not errors items 10, 11 and 13
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06).
+        //      PUT 1 a=1 @13, b=2 @27, c=3 @41, d=4 @55, e=5 @69, f=6 @83, g=7 @97, h=8 @111
+        //      (size 14 each; the last ends 125; 36 A0, 3B A2, 40 A4, 45 A6, 4A A8, 4F AA, 54 AC,
+        //      59 AE). SAVEPOINT 1 x @125, ends 135 (C8 84). ROLLBACK 1 x @135, ends 145
+        //      (D0 85). COMMIT 1 @145, ends 154 (31 09). L = 154.
+        //   2. Phase 1: all 11 intact; p = 154 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens; the 8 PUTs -> list1 has 8 writes (R19a 0..7 before each).
+        //      SAVEPOINT @125: R13 N = 5; R14; R16a 78 ok; R19 open. R19a applies only to PUT
+        //      and DELETE ("SAVEPOINT and ROLLBACK records are not writes and never count") ->
+        //      R23a: sp1 {x: 8 @125}.
+        //      ROLLBACK @135: R19b x exists -> R23b keeps the first 8 writes (removes none,
+        //      Not errors item 13); no savepoint set after 125; list1 still 8 writes.
+        //   4. COMMIT 1 applies a..h -> state {a=1 ... h=8}; committed [1].
+        // Expected: OK state={"a"="1", "b"="2", "c"="3", "d"="4", "e"="5", "f"="6", "g"="7", "h"="8"} committed=[1] aborted=[] incomplete=[] validLength=154 tornTail=false
+        c.add(TestCase.of("H75", "l1_savepoint_and_rollback_at_8_writes_ok", "R19a,R22,R23a,R23b",
+                LogBuilder.wal().begin(1).put(1, "a", "1").put(1, "b", "2").put(1, "c", "3")
+                        .put(1, "d", "4").put(1, "e", "5").put(1, "f", "6").put(1, "g", "7")
+                        .put(1, "h", "8").savepoint(1, 0x78).rollback(1, 0x78).commit(1).build(),
+                "OK state={\"a\"=\"1\", \"b\"=\"2\", \"c\"=\"3\", \"d\"=\"4\", \"e\"=\"5\", \"f\"=\"6\", \"g\"=\"7\", \"h\"=\"8\"} committed=[1] aborted=[] incomplete=[] validLength=154 tornTail=false"));
+
+        // H76 prec_bad_value_before_txn_too_large
+        // Rules: P4, R16, R19a
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13. The 8 PUTs of H75 @13 ... @111 (last ends 125).
+        //      PUT 1 "i" = byte 7F @125: N = 7+1+1 = 9, size 14, ends 139 (A4 F6).
+        //      COMMIT 1 @139, ends 148 (31 09). L = 148.
+        //   2. Phase 1: all 11 intact; p = 148 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens; the 8 PUTs -> list1 has 8 writes.
+        //      PUT @125 has two problems: value byte 7F (R16) and a full write list (R19a).
+        //      R13 9 = 7+1+1 ok; R14 txn 1; R15 key 69 ok; R16 value byte 7F > VALUE_BYTE_MAX
+        //      7E -> throw BAD_VALUE at 125.
+        //   4. Deciding rule P4: "So the field checks (R13 to R16a) always come before the
+        //      transaction checks (R17 to R19b)."
+        // Expected: ERR BAD_VALUE@125
+        c.add(TestCase.of("H76", "prec_bad_value_before_txn_too_large", "P4,R16,R19a",
+                LogBuilder.wal().begin(1).put(1, "a", "1").put(1, "b", "2").put(1, "c", "3")
+                        .put(1, "d", "4").put(1, "e", "5").put(1, "f", "6").put(1, "g", "7")
+                        .put(1, "h", "8").put(1, "i", "\u007F").commit(1).build(),
+                "ERR BAD_VALUE@125"));
+
+        // H77 prec_txn_not_open_before_txn_too_large
+        // Rules: P4, R19, R19a, R22
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13. The 8 PUTs of H75 @13 ... @111 (last ends 125).
+        //      COMMIT 1 @125, ends 134 (31 09). PUT 1 "i"="9" @134, ends 148 (5E B0). L = 148.
+        //   2. Phase 1: all 11 intact; p = 148 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens; 8 PUTs -> list1 has 8 writes. COMMIT 1 @125 applies them;
+        //      txn 1 is no longer open (R22).
+        //      PUT @134: R13 9 = 7+1+1; R14 txn 1; R15 key 69; R16 value 39; R19 txn 1 is already
+        //      committed, not open -> throw TXN_NOT_OPEN at 134. (A count of 8 writes kept for
+        //      txn 1 after its COMMIT would give TXN_TOO_LARGE if checked first.)
+        //   4. Deciding rule P4: "For a PUT or DELETE record, TXN_NOT_OPEN (R19) comes before
+        //      TXN_TOO_LARGE (R19a)."
+        // Expected: ERR TXN_NOT_OPEN@134
+        c.add(TestCase.of("H77", "prec_txn_not_open_before_txn_too_large", "P4,R19,R19a,R22",
+                LogBuilder.wal().begin(1).put(1, "a", "1").put(1, "b", "2").put(1, "c", "3")
+                        .put(1, "d", "4").put(1, "e", "5").put(1, "f", "6").put(1, "g", "7")
+                        .put(1, "h", "8").commit(1).put(1, "i", "9").build(),
+                "ERR TXN_NOT_OPEN@134"));
+
+        // =====================================================================================
+        // Group K: savepoints L2 (SAVEPOINT type 6, ROLLBACK type 7; R13, R16a, R19, R19b, R23a,
+        // R23b)
+        // =====================================================================================
+
+        // H78 sp_payload_n4_is_malformed
+        // Rules: R7, R11, R13
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06).
+        //      Record @13: type 06, N = 4, payload 00 00 00 01, size 9, ends 22, correct
+        //      checksum 3F 0B (table). COMMIT 1 @22, ends 31 (31 09). L = 31.
+        //   2. Phase 1: p = 4 intact. p = 13: R6 L-p = 18; R7 type 6 is valid (1..7); R8 N = 4;
+        //      R9 22 <= 31; R10 correct -> intact (the payload layout is a phase-2 check).
+        //      p = 22 intact; p = 31 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens. SAVEPOINT @13: R13 "SAVEPOINT, ROLLBACK: N = 5"; N = 4 ->
+        //      throw MALFORMED_PAYLOAD at 13. (These are the bytes of the v2 test H11.)
+        // Expected: ERR MALFORMED_PAYLOAD@13
+        c.add(TestCase.of("H78", "sp_payload_n4_is_malformed", "R7,R11,R13",
+                LogBuilder.wal().begin(1).record(6, Hex.bytes("00 00 00 01")).commit(1).build(),
+                "ERR MALFORMED_PAYLOAD@13"));
+
+        // H79 prec_malformed_before_bad_name_savepoint_n6
+        // Rules: P4, R13, R16a
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06).
+        //      Record @13: type 06, N = 6, payload 00 00 00 01 20 73, size 11, ends 24, correct
+        //      checksum 17 A0 (table). COMMIT 1 @24, ends 33 (31 09). L = 33.
+        //   2. Phase 1: p = 4 intact; p = 13: R7 type 6; R8 N = 6; R9 24 <= 33; R10 correct ->
+        //      intact; p = 24 intact; p = 33 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens. SAVEPOINT @13 has two problems: N = 6 (R13) and name
+        //      byte 20 (payload byte 4, R16a). R13: N = 6 != 5 -> throw MALFORMED_PAYLOAD at 13.
+        //   4. Deciding rule P4: "Within one record, the first failing check in the order R13,
+        //      R14, R15, R16, R16a, R17, R18, R19, R19a, R19b decides the code."
+        // Expected: ERR MALFORMED_PAYLOAD@13
+        c.add(TestCase.of("H79", "prec_malformed_before_bad_name_savepoint_n6", "P4,R13,R16a",
+                LogBuilder.wal().begin(1).record(6, Hex.bytes("00 00 00 01 20 73")).commit(1).build(),
+                "ERR MALFORMED_PAYLOAD@13"));
+
+        // H80 rb_payload_n6_is_malformed
+        // Rules: R13
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). SAVEPOINT 1 s @13, ends 23 (C3 7F).
+        //      Record @23: type 07, N = 6, payload 00 00 00 01 73 73 (a ROLLBACK 1 s payload plus
+        //      one byte 73), size 11, ends 34, correct checksum C6 F4 (table).
+        //      COMMIT 1 @34, ends 43 (31 09). L = 43.
+        //   2. Phase 1: all 4 intact (R7 types 1, 6, 7, 4); p = 43 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens. SAVEPOINT @13 -> sp1 {s: 0 @13}. ROLLBACK @23: R13 N = 6
+        //      != 5 -> throw MALFORMED_PAYLOAD at 23. (Reading only payload bytes 0-4 and
+        //      ignoring the extra byte would roll back to s and give OK committed=[1].)
+        // Expected: ERR MALFORMED_PAYLOAD@23
+        c.add(TestCase.of("H80", "rb_payload_n6_is_malformed", "R13",
+                LogBuilder.wal().begin(1).savepoint(1, 0x73).record(7, Hex.bytes("00 00 00 01 73 73"))
+                        .commit(1).build(),
+                "ERR MALFORMED_PAYLOAD@23"));
+
+        // H81 rb_payload_n4_is_malformed
+        // Rules: R13
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). SAVEPOINT 1 s @13, ends 23 (C3 7F).
+        //      Record @23: type 07, N = 4, payload 00 00 00 01 (no name byte), size 9, ends 32,
+        //      correct checksum 46 0C (table). COMMIT 1 @32, ends 41 (31 09). L = 41.
+        //   2. Phase 1: all 4 intact; p = 41 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens; SAVEPOINT @13 -> sp1 {s: 0 @13}. ROLLBACK @23: R13 N = 4
+        //      != 5 -> throw MALFORMED_PAYLOAD at 23.
+        // Expected: ERR MALFORMED_PAYLOAD@23
+        c.add(TestCase.of("H81", "rb_payload_n4_is_malformed", "R13",
+                LogBuilder.wal().begin(1).savepoint(1, 0x73).record(7, Hex.bytes("00 00 00 01"))
+                        .commit(1).build(),
+                "ERR MALFORMED_PAYLOAD@23"));
+
+        // H82 sp_name_0x20_is_bad_name
+        // Rules: R16a (NAME_BYTE_MIN)
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). PUT 1 a=1 @13, ends 27 (36 A0).
+        //      SAVEPOINT 1 name 20 @27, ends 37 (70 2C). COMMIT 1 @37, ends 46 (31 09). L = 46.
+        //   2. Phase 1: all 4 intact; p = 46 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens; PUT -> list1 [a=1]. SAVEPOINT @27: R13 N = 5; R14 txn 1;
+        //      R16a name byte 20 < NAME_BYTE_MIN 21 -> throw BAD_NAME at 27.
+        // Expected: ERR BAD_NAME@27
+        c.add(TestCase.of("H82", "sp_name_0x20_is_bad_name", "R16a",
+                LogBuilder.wal().begin(1).put(1, "a", "1").savepoint(1, 0x20).commit(1).build(),
+                "ERR BAD_NAME@27"));
+
+        // H83 rb_name_0x7f_is_bad_name_before_no_savepoint
+        // Rules: P4, R16a (NAME_BYTE_MAX), R19b
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). SAVEPOINT 1 s @13, ends 23 (C3 7F).
+        //      ROLLBACK 1 name 7F @23, ends 33 (D7 8C). COMMIT 1 @33, ends 42 (31 09). L = 42.
+        //   2. Phase 1: all 4 intact; p = 42 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens; SAVEPOINT @13 -> sp1 {s: 0 @13}. ROLLBACK @23 has two
+        //      problems: name byte 7F (R16a) and no savepoint named 7F (R19b). R13 N = 5; R14
+        //      txn 1; R16a 7F > NAME_BYTE_MAX 7E -> throw BAD_NAME at 23.
+        //   4. Deciding rule P4: "So the field checks (R13 to R16a) always come before the
+        //      transaction checks (R17 to R19b)."
+        // Expected: ERR BAD_NAME@23
+        c.add(TestCase.of("H83", "rb_name_0x7f_is_bad_name_before_no_savepoint", "P4,R16a,R19b",
+                LogBuilder.wal().begin(1).savepoint(1, 0x73).rollback(1, 0x7F).commit(1).build(),
+                "ERR BAD_NAME@23"));
+
+        // H84 sp_rb_names_0x21_and_0x7e_ok
+        // Rules: R16a (both ends), R23a, R23b, R22
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). SAVEPOINT 1 name 21 @13, ends 23 (71 2D).
+        //      PUT 1 a=1 @23, ends 37 (36 A0). SAVEPOINT 1 name 7E @37, ends 47 (CE 8A).
+        //      PUT 1 b=2 @47, ends 61 (3B A2). ROLLBACK 1 name 7E @61, ends 71 (D6 8B).
+        //      PUT 1 c=3 @71, ends 85 (40 A4). COMMIT 1 @85, ends 94 (31 09). L = 94.
+        //   2. Phase 1: all 8 intact; p = 94 = L (R5): validLength = 94, tornTail = false.
+        //   3. Phase 2: BEGIN 1 opens. SAVEPOINT @13: R16a 21 = NAME_BYTE_MIN, in range ("Every
+        //      range includes both ends") -> sp1 {21: 0 @13}. PUT a -> list1 [a=1].
+        //      SAVEPOINT @37: R16a 7E = NAME_BYTE_MAX ok -> sp1 {21: 0 @13, 7E: 1 @37}.
+        //      PUT b -> [a=1, b=2]. ROLLBACK @61: R16a 7E ok; R19 open; R19b 7E exists ->
+        //      keep 1 write: [a=1]; no savepoint set after 37 (21 was set @13, stays).
+        //      PUT c -> [a=1, c=3].
+        //   4. COMMIT 1: a=1, c=3 -> state {a=1, c=3}; committed [1].
+        // Expected: OK state={"a"="1", "c"="3"} committed=[1] aborted=[] incomplete=[] validLength=94 tornTail=false
+        c.add(TestCase.of("H84", "sp_rb_names_0x21_and_0x7e_ok", "R16a,R22,R23a,R23b",
+                LogBuilder.wal().begin(1).savepoint(1, 0x21).put(1, "a", "1").savepoint(1, 0x7E)
+                        .put(1, "b", "2").rollback(1, 0x7E).put(1, "c", "3").commit(1).build(),
+                "OK state={\"a\"=\"1\", \"c\"=\"3\"} committed=[1] aborted=[] incomplete=[] validLength=94 tornTail=false"));
+
+        // H85 prec_bad_txn_id_before_bad_name
+        // Rules: P4, R14, R16a
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). SAVEPOINT 1 s @13, ends 23 (C3 7F).
+        //      ROLLBACK txn 0 name 20 @23, ends 33 (76 2C). COMMIT 1 @33, ends 42 (31 09).
+        //      L = 42.
+        //   2. Phase 1: all 4 intact; p = 42 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens; SAVEPOINT @13 -> sp1 {s: 0 @13}. ROLLBACK @23 has three
+        //      problems: txn 0 (R14), name byte 20 (R16a), txn 0 not open (R19). R13 N = 5 ok;
+        //      R14 txn = 0 -> throw BAD_TXN_ID at 23.
+        //   4. Deciding rule P4: "Within one record, the first failing check in the order R13,
+        //      R14, R15, R16, R16a, R17, R18, R19, R19a, R19b decides the code."
+        // Expected: ERR BAD_TXN_ID@23
+        c.add(TestCase.of("H85", "prec_bad_txn_id_before_bad_name", "P4,R14,R16a",
+                LogBuilder.wal().begin(1).savepoint(1, 0x73).rollback(0, 0x20).commit(1).build(),
+                "ERR BAD_TXN_ID@23"));
+
+        // H86 prec_bad_name_before_txn_not_open
+        // Rules: P4, R16a, R19
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). SAVEPOINT txn 2 name 7F @13, ends 23
+        //      (D1 8C). COMMIT 1 @23, ends 32 (31 09). L = 32.
+        //   2. Phase 1: all 3 intact; p = 32 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens. SAVEPOINT @13 has two problems: name byte 7F (R16a) and
+        //      txn 2, which never had a BEGIN (R19). R13 N = 5; R14 txn 2 != 0; R16a 7F > 7E ->
+        //      throw BAD_NAME at 13.
+        //   4. Deciding rule P4: "For a SAVEPOINT or ROLLBACK record, BAD_NAME (R16a) comes
+        //      before TXN_NOT_OPEN (R19)."
+        // Expected: ERR BAD_NAME@13
+        c.add(TestCase.of("H86", "prec_bad_name_before_txn_not_open", "P4,R16a,R19",
+                LogBuilder.wal().begin(1).savepoint(2, 0x7F).commit(1).build(),
+                "ERR BAD_NAME@13"));
+
+        // H87 sp_txn_not_open
+        // Rules: R19
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). PUT 1 a=1 @13, ends 27 (36 A0).
+        //      SAVEPOINT 2 s @27, ends 37 (C5 80). COMMIT 1 @37, ends 46 (31 09). L = 46.
+        //   2. Phase 1: all 4 intact; p = 46 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens; PUT -> list1 [a=1]. SAVEPOINT @27: R13 N = 5; R14 txn 2;
+        //      R16a 73 ok; R19 txn 2 never had a BEGIN record, not open -> throw TXN_NOT_OPEN
+        //      at 27 (R19 lists SAVEPOINT).
+        // Expected: ERR TXN_NOT_OPEN@27
+        c.add(TestCase.of("H87", "sp_txn_not_open", "R19",
+                LogBuilder.wal().begin(1).put(1, "a", "1").savepoint(2, 0x73).commit(1).build(),
+                "ERR TXN_NOT_OPEN@27"));
+
+        // H88 prec_txn_not_open_before_no_savepoint
+        // Rules: P4, R19, R19b, R22
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). PUT 1 a=1 @13, ends 27 (36 A0).
+        //      SAVEPOINT 1 s @27, ends 37 (C3 7F). COMMIT 1 @37, ends 46 (31 09).
+        //      ROLLBACK 1 s @46, ends 56 (CB 80). L = 56.
+        //   2. Phase 1: all 5 intact; p = 56 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens; PUT -> [a=1]; SAVEPOINT -> sp1 {s: 1 @27}. COMMIT @37
+        //      applies a=1; txn 1 is no longer open and its savepoints are discarded (R22).
+        //      ROLLBACK @46 has two problems: txn 1 not open (R19) and no savepoint s (R19b).
+        //      R13 N = 5; R14 txn 1; R16a 73 ok; R19 txn 1 already committed -> throw
+        //      TXN_NOT_OPEN at 46.
+        //   4. Deciding rule P4: "For a ROLLBACK record, TXN_NOT_OPEN (R19) comes before
+        //      NO_SAVEPOINT (R19b)."
+        // Expected: ERR TXN_NOT_OPEN@46
+        c.add(TestCase.of("H88", "prec_txn_not_open_before_no_savepoint", "P4,R19,R19b,R22",
+                LogBuilder.wal().begin(1).put(1, "a", "1").savepoint(1, 0x73).commit(1)
+                        .rollback(1, 0x73).build(),
+                "ERR TXN_NOT_OPEN@46"));
+
+        // H89 sp_per_transaction_rollback_in_other_txn_is_no_savepoint
+        // Rules: R19b; Not errors item 14
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). BEGIN 2 @13, ends 22 (1D 07).
+        //      SAVEPOINT 1 s @22, ends 32 (C3 7F). PUT 2 a=1 @32, ends 46 (3C A1).
+        //      ROLLBACK 2 s @46, ends 56 (CD 81). COMMIT 1 @56, ends 65 (31 09).
+        //      COMMIT 2 @65, ends 74 (32 0A). L = 74.
+        //   2. Phase 1: all 7 intact; p = 74 = L (R5).
+        //   3. Phase 2: BEGIN 1, BEGIN 2 open. SAVEPOINT @22 -> sp1 {s: 0 @22}; txn 2 has no
+        //      savepoints. PUT 2 -> list2 [a=1]. ROLLBACK @46: R13 N = 5; R14 txn 2; R16a 73;
+        //      R19 txn 2 open; R19b txn 2 has no savepoint s ("Each transaction has its own
+        //      savepoints: a savepoint of another transaction with the same name does not
+        //      count") -> throw NO_SAVEPOINT at 46.
+        // Expected: ERR NO_SAVEPOINT@46
+        c.add(TestCase.of("H89", "sp_per_transaction_rollback_in_other_txn_is_no_savepoint", "R19b",
+                LogBuilder.wal().begin(1).begin(2).savepoint(1, 0x73).put(2, "a", "1")
+                        .rollback(2, 0x73).commit(1).commit(2).build(),
+                "ERR NO_SAVEPOINT@46"));
+
+        // H90 sp_same_name_two_txns_independent
+        // Rules: R23a, R23b, R22; Not errors item 14
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). BEGIN 2 @13, ends 22 (1D 07).
+        //      PUT 1 a=1 @22, ends 36 (36 A0). SAVEPOINT 1 s @36, ends 46 (C3 7F).
+        //      SAVEPOINT 2 s @46, ends 56 (C5 80). PUT 1 b=2 @56, ends 70 (3B A2).
+        //      PUT 2 c=3 @70, ends 84 (46 A5). ROLLBACK 2 s @84, ends 94 (CD 81).
+        //      ROLLBACK 1 s @94, ends 104 (CB 80). COMMIT 1 @104, ends 113 (31 09).
+        //      COMMIT 2 @113, ends 122 (32 0A). L = 122.
+        //   2. Phase 1: all 11 intact; p = 122 = L (R5).
+        //   3. Phase 2: BEGIN 1, 2 open. PUT 1 a -> list1 [a=1]. SAVEPOINT 1 s -> sp1 {s: 1 @36}.
+        //      SAVEPOINT 2 s: txn 2 has no savepoint s -> creates sp2 {s: 0 @46}; txn 1's s is
+        //      not moved (Not errors item 14). PUT 1 b -> list1 [a=1, b=2]. PUT 2 c -> list2
+        //      [c=3]. ROLLBACK 2 s @84: R19b sp2 has s -> list2 keeps 0 writes: []; no savepoint
+        //      of txn 2 set after 46; txn 1 unchanged. ROLLBACK 1 s @94: R19b sp1 has s ->
+        //      list1 keeps 1 write: [a=1]; no savepoint of txn 1 set after 36.
+        //   4. COMMIT 1: a=1 -> {a=1}; committed [1]. COMMIT 2: list2 empty; committed [1, 2].
+        // Expected: OK state={"a"="1"} committed=[1, 2] aborted=[] incomplete=[] validLength=122 tornTail=false
+        c.add(TestCase.of("H90", "sp_same_name_two_txns_independent", "R22,R23a,R23b",
+                LogBuilder.wal().begin(1).begin(2).put(1, "a", "1").savepoint(1, 0x73)
+                        .savepoint(2, 0x73).put(1, "b", "2").put(2, "c", "3").rollback(2, 0x73)
+                        .rollback(1, 0x73).commit(1).commit(2).build(),
+                "OK state={\"a\"=\"1\"} committed=[1, 2] aborted=[] incomplete=[] validLength=122 tornTail=false"));
+
+        // H91 sp_reused_name_moves_savepoint
+        // Rules: R23a, R23b, R22; Not errors item 12
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). SAVEPOINT 1 s @13, ends 23 (C3 7F).
+        //      PUT 1 a=1 @23, ends 37 (36 A0). SAVEPOINT 1 t @37, ends 47 (C4 80).
+        //      PUT 1 b=2 @47, ends 61 (3B A2). SAVEPOINT 1 s @61, ends 71 (C3 7F).
+        //      PUT 1 c=3 @71, ends 85 (40 A4). ROLLBACK 1 s @85, ends 95 (CB 80).
+        //      ROLLBACK 1 t @95, ends 105 (CC 81). PUT 1 d=4 @105, ends 119 (45 A6).
+        //      COMMIT 1 @119, ends 128 (31 09). L = 128.
+        //   2. Phase 1: all 11 intact; p = 128 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens.
+        //      SAVEPOINT @13: sp1 {s: 0 @13}. PUT a -> [a=1]. SAVEPOINT @37: sp1 {s: 0 @13,
+        //      t: 1 @37}. PUT b -> [a=1, b=2].
+        //      SAVEPOINT @61: s exists -> R23a moves it: position 2, now set by @61; "Moving a
+        //      savepoint does not change or remove any other savepoint" -> sp1 {s: 2 @61,
+        //      t: 1 @37}. PUT c -> [a=1, b=2, c=3].
+        //      ROLLBACK s @85: keep 2 writes [a=1, b=2]; remove savepoints set by a record at an
+        //      offset > 61: none (t was set @37) -> sp1 {s: 2 @61, t: 1 @37}.
+        //      ROLLBACK t @95: R19b t exists; keep 1 write [a=1]; remove savepoints set at an
+        //      offset > 37: s (set @61) -> sp1 {t: 1 @37}.
+        //      PUT d -> [a=1, d=4].
+        //   4. COMMIT 1: a=1, d=4 -> state {a=1, d=4}; committed [1].
+        //   (Without the move, s would keep position 0: ROLLBACK s would empty the list and
+        //   remove t (set @37 > 13), and ROLLBACK t would throw NO_SAVEPOINT.)
+        // Expected: OK state={"a"="1", "d"="4"} committed=[1] aborted=[] incomplete=[] validLength=128 tornTail=false
+        c.add(TestCase.of("H91", "sp_reused_name_moves_savepoint", "R22,R23a,R23b",
+                LogBuilder.wal().begin(1).savepoint(1, 0x73).put(1, "a", "1").savepoint(1, 0x74)
+                        .put(1, "b", "2").savepoint(1, 0x73).put(1, "c", "3").rollback(1, 0x73)
+                        .rollback(1, 0x74).put(1, "d", "4").commit(1).build(),
+                "OK state={\"a\"=\"1\", \"d\"=\"4\"} committed=[1] aborted=[] incomplete=[] validLength=128 tornTail=false"));
+
+        // H92 rb_removes_moved_savepoint_then_no_savepoint
+        // Rules: R19b, R23a, R23b
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). SAVEPOINT 1 s @13, ends 23 (C3 7F).
+        //      PUT 1 a=1 @23, ends 37 (36 A0). SAVEPOINT 1 t @37, ends 47 (C4 80).
+        //      PUT 1 b=2 @47, ends 61 (3B A2). SAVEPOINT 1 s @61, ends 71 (C3 7F).
+        //      ROLLBACK 1 t @71, ends 81 (CC 81). ROLLBACK 1 s @81, ends 91 (CB 80).
+        //      COMMIT 1 @91, ends 100 (31 09). L = 100.
+        //   2. Phase 1: all 9 intact; p = 100 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens. As in H91: sp1 {s: 0 @13}; [a=1]; sp1 {s: 0 @13,
+        //      t: 1 @37}; [a=1, b=2]; SAVEPOINT @61 moves s -> sp1 {s: 2 @61, t: 1 @37}.
+        //      ROLLBACK t @71: keep 1 write [a=1]; s is set by the record @61, a larger offset
+        //      than t's record @37 -> s is removed ("a savepoint is set by the SAVEPOINT record
+        //      that created it or that moved it most recently", R23a) -> sp1 {t: 1 @37}.
+        //      ROLLBACK s @81: R13 N = 5; R14; R16a 73; R19 open; R19b txn 1 has no savepoint s
+        //      ("a savepoint that an earlier ROLLBACK removed (R23b) and that no SAVEPOINT record
+        //      has created again since then") -> throw NO_SAVEPOINT at 81.
+        //   (Judging "later" by the record that first created s, @13, would keep s.)
+        // Expected: ERR NO_SAVEPOINT@81
+        c.add(TestCase.of("H92", "rb_removes_moved_savepoint_then_no_savepoint", "R19b,R23a,R23b",
+                LogBuilder.wal().begin(1).savepoint(1, 0x73).put(1, "a", "1").savepoint(1, 0x74)
+                        .put(1, "b", "2").savepoint(1, 0x73).rollback(1, 0x74).rollback(1, 0x73)
+                        .commit(1).build(),
+                "ERR NO_SAVEPOINT@81"));
+
+        // H93 rb_equal_positions_decided_by_setting_record_offset
+        // Rules: R19b, R23b
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). PUT 1 a=1 @13, ends 27 (36 A0).
+        //      SAVEPOINT 1 x @27, ends 37 (C8 84). SAVEPOINT 1 y @37, ends 47 (C9 85).
+        //      PUT 1 b=2 @47, ends 61 (3B A2). ROLLBACK 1 y @61, ends 71 (D1 86).
+        //      ROLLBACK 1 x @71, ends 81 (D0 85). ROLLBACK 1 y @81, ends 91 (D1 86).
+        //      COMMIT 1 @91, ends 100 (31 09). L = 100.
+        //   2. Phase 1: all 9 intact; p = 100 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens. PUT a -> [a=1]. SAVEPOINT x -> sp1 {x: 1 @27}. SAVEPOINT y
+        //      (no write between) -> sp1 {x: 1 @27, y: 1 @37}: equal positions. PUT b ->
+        //      [a=1, b=2].
+        //      ROLLBACK y @61: keep 1 write [a=1]; x has the same position but its record @27 is
+        //      at a smaller offset than 37 -> x stays ("it stays when its setting record is at a
+        //      smaller offset"); sp1 {x: 1 @27, y: 1 @37}.
+        //      ROLLBACK x @71: R19b x exists; keep 1 write [a=1]; y has the same position and its
+        //      record @37 is at a larger offset than 27 -> y is removed ("another savepoint with
+        //      the same position as s is removed when its setting record is at a larger
+        //      offset"); sp1 {x: 1 @27}.
+        //      ROLLBACK y @81: R13-R19 ok; R19b no savepoint y -> throw NO_SAVEPOINT at 81.
+        //   (Removing by position >= 1 would remove x at @61 and throw at 71; removing by
+        //   position > 1 would keep y and give OK.)
+        // Expected: ERR NO_SAVEPOINT@81
+        c.add(TestCase.of("H93", "rb_equal_positions_decided_by_setting_record_offset", "R19b,R23b",
+                LogBuilder.wal().begin(1).put(1, "a", "1").savepoint(1, 0x78).savepoint(1, 0x79)
+                        .put(1, "b", "2").rollback(1, 0x79).rollback(1, 0x78).rollback(1, 0x79)
+                        .commit(1).build(),
+                "ERR NO_SAVEPOINT@81"));
+
+        // H94 rb_same_savepoint_twice
+        // Rules: R23b, R22; Not errors item 13
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). PUT 1 a=1 @13, ends 27 (36 A0).
+        //      SAVEPOINT 1 s @27, ends 37 (C3 7F). PUT 1 b=2 @37, ends 51 (3B A2).
+        //      ROLLBACK 1 s @51, ends 61 (CB 80). PUT 1 c=3 @61, ends 75 (40 A4).
+        //      ROLLBACK 1 s @75, ends 85 (CB 80). PUT 1 d=4 @85, ends 99 (45 A6).
+        //      COMMIT 1 @99, ends 108 (31 09). L = 108.
+        //   2. Phase 1: all 9 intact; p = 108 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens. PUT a -> [a=1]. SAVEPOINT s -> sp1 {s: 1 @27}. PUT b ->
+        //      [a=1, b=2]. ROLLBACK s @51 -> [a=1]; "The savepoint s itself stays, with the same
+        //      position n, so a later ROLLBACK can name it again." PUT c -> [a=1, c=3].
+        //      ROLLBACK s @75: R19b s exists -> [a=1]. PUT d -> [a=1, d=4].
+        //   4. COMMIT 1: a=1, d=4 -> state {a=1, d=4}; committed [1].
+        // Expected: OK state={"a"="1", "d"="4"} committed=[1] aborted=[] incomplete=[] validLength=108 tornTail=false
+        c.add(TestCase.of("H94", "rb_same_savepoint_twice", "R22,R23b",
+                LogBuilder.wal().begin(1).put(1, "a", "1").savepoint(1, 0x73).put(1, "b", "2")
+                        .rollback(1, 0x73).put(1, "c", "3").rollback(1, 0x73).put(1, "d", "4")
+                        .commit(1).build(),
+                "OK state={\"a\"=\"1\", \"d\"=\"4\"} committed=[1] aborted=[] incomplete=[] validLength=108 tornTail=false"));
+
+        // H95 rb_to_savepoint_at_position_0
+        // Rules: R23a, R23b, R22; Not errors item 3
+        // Derivation:
+        //   1. Header ok. BEGIN 2 @4, ends 13 (1D 07). PUT 2 b=2 @13, ends 27 (41 A3).
+        //      COMMIT 2 @27, ends 36 (32 0A). BEGIN 1 @36, ends 45 (1C 06).
+        //      SAVEPOINT 1 z @45, ends 55 (CA 86). PUT 1 a=1 @55, ends 69 (36 A0).
+        //      DELETE 1 b @69, size 11, ends 80 (AC 6D). ROLLBACK 1 z @80, ends 90 (D2 87).
+        //      COMMIT 1 @90, ends 99 (31 09). L = 99.
+        //   2. Phase 1: all 9 intact; p = 99 = L (R5).
+        //   3. Phase 2: BEGIN 2 opens; PUT -> list2 [b=2]; COMMIT 2 -> state {b=2},
+        //      committed [2]. BEGIN 1 (R17 new id, R18 0 open) opens with an empty list.
+        //      SAVEPOINT z: n = 0 -> sp1 {z: 0 @45}. PUT a, DELETE b -> [a=1, del b].
+        //      ROLLBACK z @80: R19b z exists (position 0 is a real savepoint) -> keep the first 0
+        //      writes: list1 []. The state is not changed (R23b).
+        //   4. COMMIT 1 with no writes: state stays {b=2}; committed [2, 1].
+        // Expected: OK state={"b"="2"} committed=[2, 1] aborted=[] incomplete=[] validLength=99 tornTail=false
+        c.add(TestCase.of("H95", "rb_to_savepoint_at_position_0", "R22,R23a,R23b",
+                LogBuilder.wal().begin(2).put(2, "b", "2").commit(2).begin(1).savepoint(1, 0x7A)
+                        .put(1, "a", "1").del(1, "b").rollback(1, 0x7A).commit(1).build(),
+                "OK state={\"b\"=\"2\"} committed=[2, 1] aborted=[] incomplete=[] validLength=99 tornTail=false"));
+
+        // H96 rb_commit_applies_kept_writes_in_order
+        // Rules: R21, R22, R23b
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). PUT 1 a=1 @13, ends 27 (36 A0).
+        //      PUT 1 b=2 @27, ends 41 (3B A2). SAVEPOINT 1 s @41, ends 51 (C3 7F).
+        //      PUT 1 a=3 @51, ends 65 (38 A2). DELETE 1 b @65, ends 76 (AC 6D).
+        //      PUT 1 c=4 @76, ends 90 (41 A5). ROLLBACK 1 s @90, ends 100 (CB 80).
+        //      PUT 1 b=5 @100, ends 114 (3E A5). COMMIT 1 @114, ends 123 (31 09). L = 123.
+        //   2. Phase 1: all 10 intact; p = 123 = L (R5).
+        //   3. Phase 2: BEGIN 1 opens. [a=1, b=2]; SAVEPOINT -> sp1 {s: 2 @41};
+        //      [a=1, b=2, a=3, del b, c=4]. ROLLBACK s: keep the first 2 writes -> [a=1, b=2];
+        //      a=3, del b and c=4 are "never applied". PUT b=5 -> [a=1, b=2, b=5] (R21 appends at
+        //      the end).
+        //   4. COMMIT 1 in write-list order: a=1; b=2; b=5 replaces 2 -> state {a=1, b=5};
+        //      committed [1].
+        // Expected: OK state={"a"="1", "b"="5"} committed=[1] aborted=[] incomplete=[] validLength=123 tornTail=false
+        c.add(TestCase.of("H96", "rb_commit_applies_kept_writes_in_order", "R21,R22,R23b",
+                LogBuilder.wal().begin(1).put(1, "a", "1").put(1, "b", "2").savepoint(1, 0x73)
+                        .put(1, "a", "3").del(1, "b").put(1, "c", "4").rollback(1, 0x73)
+                        .put(1, "b", "5").commit(1).build(),
+                "OK state={\"a\"=\"1\", \"b\"=\"5\"} committed=[1] aborted=[] incomplete=[] validLength=123 tornTail=false"));
+
+        // H97 rb_then_abort_applies_nothing
+        // Rules: R23, R23b, R25
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). PUT 1 a=1 @13, ends 27 (36 A0).
+        //      SAVEPOINT 1 s @27, ends 37 (C3 7F). PUT 1 b=2 @37, ends 51 (3B A2).
+        //      ROLLBACK 1 s @51, ends 61 (CB 80). PUT 1 c=3 @61, ends 75 (40 A4).
+        //      ABORT 1 @75, ends 84 (38 0A). L = 84.
+        //   2. Phase 1: all 7 intact; p = 84 = L (R5).
+        //   3. Phase 2: [a=1]; sp1 {s: 1 @27}; [a=1, b=2]; ROLLBACK -> [a=1]; [a=1, c=3].
+        //      ABORT 1: R19 open -> the writes are discarded without being applied; aborted [1];
+        //      savepoints discarded (R23).
+        //   4. State {}; "SAVEPOINT and ROLLBACK records add nothing to these lists" (R25), so
+        //      committed [] and aborted [1].
+        // Expected: OK state={} committed=[] aborted=[1] incomplete=[] validLength=84 tornTail=false
+        c.add(TestCase.of("H97", "rb_then_abort_applies_nothing", "R23,R23b,R25",
+                LogBuilder.wal().begin(1).put(1, "a", "1").savepoint(1, 0x73).put(1, "b", "2")
+                        .rollback(1, 0x73).put(1, "c", "3").abort(1).build(),
+                "OK state={} committed=[] aborted=[1] incomplete=[] validLength=84 tornTail=false"));
+
+        // H98 incomplete_txn_with_rollback_and_torn_rollback_ignored
+        // Rules: P5, R10, R12, R23b, R26; Not errors items 7 and 9
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). PUT 1 a=1 @13, ends 27 (36 A0).
+        //      SAVEPOINT 1 s @27, ends 37 (C3 7F). PUT 1 a=2 @37, ends 51 (37 A1).
+        //      ROLLBACK 1 s @51, ends 61 (CB 80). BEGIN 2 @61, ends 70 (1D 07).
+        //      PUT 2 b=1 @70, ends 84 (40 A2). COMMIT 2 @84, ends 93 (32 0A).
+        //      ROLLBACK 1 q @93: N = 5, size 10, ends 103; correct checksum C9 7E (table),
+        //      stored C8 7F (corruptLastChecksum). L = 103.
+        //   2. Phase 1: p = 4 ... 84: 8 records intact. p = 93: R5 no; R6 L-p = 10; R7 type 7;
+        //      R8 N = 5; R9 93+5+5 = 103 <= 103; R10 stored C8 7F != C9 7E and the record ends at
+        //      103 = L -> torn tail at 93: validLength = 93, tornTail = true.
+        //   3. Phase 2: BEGIN 1 opens; [a=1]; sp1 {s: 1 @27}; [a=1, a=2]; ROLLBACK s -> [a=1].
+        //      BEGIN 2 (1 open) opens; list2 [b=1]; COMMIT 2 -> state {b=1}, committed [2].
+        //      The ROLLBACK @93 is in the torn tail and is not processed (it would fail R19b:
+        //      txn 1 has no savepoint q). P5: "Bytes in the torn tail are never checked by
+        //      phase 2, whatever they contain."
+        //   4. Txn 1 is still open: incomplete [1]; its write a=1 is never applied.
+        // Expected: OK state={"b"="1"} committed=[2] aborted=[] incomplete=[1] validLength=93 tornTail=true
+        c.add(TestCase.of("H98", "incomplete_txn_with_rollback_and_torn_rollback_ignored", "P5,R10,R12,R23b,R26",
+                LogBuilder.wal().begin(1).put(1, "a", "1").savepoint(1, 0x73).put(1, "a", "2")
+                        .rollback(1, 0x73).begin(2).put(2, "b", "1").commit(2).rollback(1, 0x71)
+                        .corruptLastChecksum().build(),
+                "OK state={\"b\"=\"1\"} committed=[2] aborted=[] incomplete=[1] validLength=93 tornTail=true"));
+
+        // H99 prec_no_savepoint_early_checksum_mismatch_later
+        // Rules: P2, R10, R19b
+        // Derivation:
+        //   1. Header ok. BEGIN 1 @4, ends 13 (1C 06). ROLLBACK 1 s @13, ends 23 (CB 80).
+        //      PUT 1 a=1 @23, N = 9, ends 37: correct checksum 36 A0, stored 37 A1
+        //      (corruptLastChecksum). COMMIT 1 @37, ends 46 (31 09). L = 46.
+        //   2. Two problems: the ROLLBACK @13 names a savepoint txn 1 never set (R19b, phase 2)
+        //      and the PUT @23 has a wrong checksum with bytes after it (R10, phase 1).
+        //   3. Phase 1: p = 4 intact. p = 13: R7 type 7 valid; R8 N = 5; R9 23 <= 46; R10
+        //      correct -> intact. p = 23: R6 L-p = 23; R7 type 2; R8 N = 9; R9 37 <= 46; R10
+        //      stored 37 A1 != 36 A0 and 37 < 46 -> throw CHECKSUM_MISMATCH at 23. Phase 2 never
+        //      runs.
+        //   4. Deciding rule P2: "A phase-1 error anywhere in the log beats a phase-2 error
+        //      anywhere in the log, even when the phase-2 problem is in an earlier record."
+        //      NO_SAVEPOINT is listed there as a phase-2 error.
+        // Expected: ERR CHECKSUM_MISMATCH@23
+        c.add(TestCase.of("H99", "prec_no_savepoint_early_checksum_mismatch_later", "P2,R10,R19b",
+                LogBuilder.wal().begin(1).rollback(1, 0x73).put(1, "a", "1").corruptLastChecksum()
+                        .commit(1).build(),
+                "ERR CHECKSUM_MISMATCH@23"));
 
         return c;
     }
