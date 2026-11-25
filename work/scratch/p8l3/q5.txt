@@ -1,0 +1,86 @@
+BAD H12:  @13, N = 7+1+1 = 9, size 14, ends 27 (36 A0). COMMIT 1 @27, size 9, ends 36 (31 09). BEGIN 2 @36, size 9, ends 45 (1D 07). PUT 2 
+OK  H14: even when only 1 or 2 bytes follow the record
+BAD H17:  @13: N = 7+1+1016 = 1024 (N bytes 04 00), v bytes 03 F8 (3*256+248 = 1016), size 1029, ends 1042. Correct checksum s2 s1 = 13 E9 (s1 by hand: byte sum = 2+4+0+0+0+0+1+1+107+3+248 + 1016*97 = 366 + 98552 = 98918; 98918 - 387*255 = 98918 - 98685 = 233 = E9; s2 from the arithmetic script work/scratch/p5_fletcher.py). PUT 1 
+BAD H17:  @1042: N = 7+1+2 = 10, size 15, ends 1057 (02 00 0A 00 00 00 01 01 6B 00 02 6F 6B; s1 2,2,12,12,12,12,13,14,121,121,123,234,86; s2 2,4,16,28,40,52,65,79,200,66,189,168,254 -> FE 56). COMMIT 1 @1057, ends 1066 (31 09). L = 1066. 2. Phase 1: p = 4 intact; p = 13: R7 type 2; R8 N = 1024 is not > 1024; R9 1042 <= 1066; R10 correct -> intact; p = 1042 intact; p = 1057 intact; p = 1066 = L (R5): validLength = 1066, tornTail = false. 3. Phase 2: BEGIN 1 opens. PUT @13: R13 N = 1024 >= 5, k = 1, 1024 >= 8, v = 1016, 1024 = 7+1+1016; R15 key 6B; R16 all value bytes 61 in 20..7E; R19 open -> write k=<1016 a>. PUT @1042: R13 10 = 7+1+2; key 6B; value 6F 6B ok -> write k=ok. COMMIT: apply in order, k = 1016 x a, then k = 
+OK  H20: R7 and R8 apply to every record with at least 3 bytes left at p, including ... a last record whose checksum is wrong (R10)
+BAD H23:  @13: N = 7+1+192 = 200 (N bytes 00 C8; C8 = 200), v bytes 00 C0 (C0 = 192), size 205, ends 218. Correct checksum s2 s1 = 64 5E (s1 by hand: byte sum = 2+0+200+0+0+0+1+1+118+0+192 + 192*120 = 514 + 23040 = 23554; 23554 - 92*255 = 23554 - 23460 = 94 = 5E; s2 from work/scratch/p5_fletcher.py). DELETE 1 
+BAD H23:  @218: N = 5+1 = 6, size 11, ends 229 (03 00 06 00 00 00 01 01 76; s1 3,3,9,9,9,9,10,11,129; s2 3,6,15,24,33,42,52,63,192 -> C0 81). PUT 1 
+BAD H23:  @229: N = 7+1+3 = 11, size 16, ends 245 (02 00 0B 00 00 00 01 01 6E 00 03 32 30 30; s1 2,2,13,13,13,13,14,15,125,125,128,178,226,19; s2 2,4,17,30,43,56,70,85,210,80,208,131,102,121 -> 79 13). COMMIT 1 @245, ends 254 (31 09). L = 254. 2. Phase 1: p = 4 intact; p = 13: R7 type 2; R8 N = 200 <= 1024; R9 218 <= 254; R10 correct -> intact; p = 218, 229, 245 intact; p = 254 = L (R5). 3. Phase 2: BEGIN 1 opens. PUT @13: R13 200 >= 5, k = 1, 200 >= 8, v = 192, 200 = 7+1+192; R15 key 76; R16 value bytes 78 ok -> write v=<192 x>. DELETE @218: R13 6 >= 5, k = 1, 6 = 5+1; R15 key 76 -> write del v. PUT @229: R13 11 = 7+1+3; key 6E; value 32 30 30 -> write n=200. COMMIT: v = 192 x 
+BAD H23: , then v removed, then n = 
+BAD H34: !abcdefghijklmnopqrstuvwxyz0123~
+BAD H34:  @13: N = 7+32+1 = 40 (00 28), k byte 20, v 00 01, value 31, size 45, ends 58. Checksum 78 0E: s1 by hand: byte sum of type, N, txn, k, v, value = 2+0+40+0+0+0+1+32+0+1+49 = 125; key = 33 + (97+...+122 = 2847) + (48+49+50+51 = 198) + 126 = 3204; total 3329; 3329 - 13*255 = 14 = 0E; s2 = 78 from work/scratch/p6_fletcher.py. COMMIT 1 @58, ends 67 (31 09). L = 67. 3. Phase 1: p = 4, 13 (R8 N = 40, R9 58 <= 67), 58 intact; p = 67 = L (R5). 4. Phase 2: BEGIN 1 opens. PUT @13: R13 40 >= 5; k = 32; 40 >= 39; v = 1; 40 = 7+32+1. R14 txn 1. R15 k = 32 is not > 32; every key byte is in 21..7E (
+BAD H34: , PROMPT.md 6). R16 value 31 ok. R19 open -> write K=1. COMMIT 1 -> state {K=
+BAD H35: abcdefghijklmnopqrstuvwxyz0123456
+BAD H38:  @13: N = 7+1+2 = 10, value bytes 20 7E, size 15, ends 28 (AA 25, table). COMMIT 1 @28, ends 37 (31 09). L = 37. 2. Phase 1: all intact; p = 37 = L (R5): validLength = 37, tornTail = false. 3. Phase 2: BEGIN 1 opens. PUT @13: R13 10 = 7+1+2; R14 txn 1; R15 key 76; R16 value bytes 20 (= VALUE_BYTE_MIN) and 7E (= VALUE_BYTE_MAX), both in range (ends included); R19 open -> write v=
+BAD H38: . COMMIT 1 -> state {v=
+BAD H40:  @13, ends 27 (36 A0). PUT 1 
+BAD H41:  @22, ends 36 (9B DD). PUT 7 
+BAD H41:  @36, ends 50 (B2 E0). PUT 3 
+BAD H42:  @13, ends 27 (36 A0). COMMIT 1 @27, ends 36 (31 09). BEGIN 2 @36, ends 45 (1D 07). PUT 2 
+BAD H42:  @45, ends 59 (3D A2). PUT 2 
+BAD H45:  @13, ends 27 (36 A0). COMMIT 1 @27, ends 36 (31 09). BEGIN 1 @36, ends 45 (1C 06). COMMIT 1 @45, ends 54 (31 09). L = 54. 2. Phase 1: all intact; p = 54 = L (R5). 3. Phase 2: txn 1 opens, writes a=1, commits (no longer open). BEGIN @36: R13, R14 ok; R17 the earlier BEGIN @4 has txn 1 (
+OK  H48: A transaction whose COMMIT ... has already been processed is no longer open and does not count
+BAD H50:  @13, ends 27 (92 B7). BEGIN 2 @27, ends 36 (1D 07). DELETE 2 
+BAD H50:  @36: N = 5+1 = 6, size 11, ends 47 (C5 84). DELETE 2 
+BAD H51:  @13, ends 27 (36 A0). PUT 1 
+BAD H51:  @27, ends 41 (3B A2). DELETE 1 
+BAD H51:  @41, N = 6, size 11, ends 52 (AB 6C). PUT 1 
+BAD H51:  @52: N = 7+1+0 = 8, v bytes 00 00, size 13, ends 65 (8E 6E). COMMIT 1 @65, ends 74 (31 09). L = 74. 2. Phase 1: all 6 intact; p = 74 = L (R5). 3. Phase 2: PUT @52: R13 8 >= 5, k = 1, 8 >= 8, v = 0, 8 = 7+1+0; R16 no value bytes. Write list [a=1, b=2, del a, b=
+BAD H51: ]. COMMIT: a=1 -> {a=1}; b=2 -> {a=1, b=2}; del a -> {b=2}; b=
+BAD H53:  @22, N = 9, ends 36: correct checksum A3 EF, stored A2 EE (corruptLastChecksum). COMMIT 1 @36, ends 45 (31 09). L = 45. 2. Two problems: BEGIN @4 has txn 0 (R14, phase 2) and the PUT @22 has a wrong checksum with bytes after it (R10, phase 1). 3. Phase 1: p = 4: R7 type 1; R8 N = 4; R9 13 <= 45; R10 correct -> intact (phase 1 does not read txn). p = 13 intact. p = 22: R6 23; R7 type 2; R8 N = 9; R9 36 <= 45; R10 stored A2 EE != A3 EF and 36 < 45 -> throw CHECKSUM_MISMATCH at 22. Phase 2 never runs. 4. Deciding rule P2: 
+BAD H54:  @18: N = 7+1+1017 = 1025 (04 01: 4*256+1), size 1030, ends 1048 (the same bytes as H16's record @13, correct checksum). COMMIT 1 @1048, ends 1057 (31 09). L = 1057. 2. Two problems: the COMMIT @13 has N = 0 (R13, phase 2) and the PUT @18 has N = 1025 (R8, phase 1). 3. Phase 1: p = 4 intact. p = 13: R6 1044; R7 type 4; R8 N = 0; R9 18 <= 1057; R10 correct -> intact (the payload layout is not a phase-1 check). p = 18: R6 1039; R7 type 2; R8 N = 1025 > 1024 -> throw RECORD_TOO_LARGE at 18. 4. Deciding rule P2: 
+BAD H55:  @13: N = 7+3+1 = 11, size 16, ends 29 (5B 26, table). COMMIT 1 @29, ends 38 (31 09). L = 38. 2. Phase 1: all intact; p = 38 = L (R5). 3. Phase 2: BEGIN 1 opens. PUT @13 has three problems: txn 0 (R14), key byte 20 (R15), txn 0 not open (R19). R13: 11 >= 5, k = 3, 11 >= 10, v = 1, 11 = 7+3+1 ok. R14 txn 0 -> throw BAD_TXN_ID at 13. 4. Deciding rule P4: 
+BAD H56:  @13: N = 9, size 14, ends 27 (5E 2A, table). COMMIT 1 @27, ends 36 (31 09). L = 36. 2. Phase 1: all intact; p = 36 = L (R5). 3. Phase 2: BEGIN 1 opens. PUT @13 has two problems: key byte E9 (R15) and txn 2, which never had a BEGIN (R19). R13 9 = 7+1+1; R14 txn 2; R15 key byte E9 = 233 > KEY_BYTE_MAX 7E = 126 -> throw BAD_KEY at 13. 4. Deciding rule P4: 
+OK  H57: For a BEGIN record, DUPLICATE_TXN (R17) comes before TOO_MANY_OPEN (R18).
+BAD H58:  @22, ends 36 (3D A2). COMMIT 1 @36, ends 45 (31 09). COMMIT 2 @45 would end at 54; its last byte is dropped, so 8 bytes 04 00 04 00 00 00 02 32 remain. L = 53. 2. Phase 1: p = 4, 13, 22, 36 intact. p = 45: R5 no; R6 L-p = 8; R7 type 4; R8 N = 4; R9 45+5+4 = 54 > 53 -> torn tail at 45: validLength = 45, tornTail = true. 3. Phase 2: opens 1 and 2; PUT 2 a=2 goes to txn 2's list; COMMIT 1 (no writes) -> committed [1]. The COMMIT 2 is in the torn tail and is not processed. 4. Deciding rules: P5 
+OK  H58: A COMMIT or ABORT in the torn tail is not processed, so it is not listed.
+OK  H59: A torn tail does not prevent errors: if an intact record before the torn tail fails a phase-2 check, recover throws that error.
+BAD H60:  @13, ends 27 (36 A0). COMMIT 1 @27, ends 36 (31 09). PUT txn 0 
+BAD H60:  = byte 01 @36: N = 7+3+1 = 11, size 16, ends 52; correct checksum 2B F5, stored 2A F4 (corruptLastChecksum). L = 52. 2. Phase 1: p = 4, 13, 27 intact. p = 36: R6 16; R7 type 2; R8 N = 11; R9 52 <= 52; R10 stored 2A F4 != 2B F5 and 36+5+11 = 52 = L -> torn tail at 36: validLength = 36, tornTail = true. 3. Phase 2: txn 1 writes a=1 and commits -> state {a=1}, committed [1]. The record @36 would fail R14 (txn 0), R15 (key byte 20), R16 (value byte 01) and R19, but it is in the torn tail. 4. Deciding rule P5: 
+BAD H61:  = byte 7F @22: N = 9, size 14, ends 36 (D8 04, table). COMMIT 1 @36, ends 45 (31 09). L = 45. 2. Phase 1: all intact; p = 45 = L (R5). 3. Phase 2: BEGIN 1 opens. COMMIT @13: R13 N = 4; R14 txn 2; R19 txn 2 never had a BEGIN -> throw TXN_NOT_OPEN at 13. The PUT @22 would fail R16 (BAD_VALUE), a check that comes earlier in the R13 to R19b order, but it is a later record. 4. Deciding rule P4: 
+BAD H62:  @22: N = 7+1+3 = 11, size 16, ends 38 (54 8B). PUT 2 
+BAD H62:  @38: N = 8, size 13, ends 51 (90 6E). DELETE 2 
+BAD H62:  @51: N = 6, size 11, ends 62 (B8 77). COMMIT 2 @62, ends 71 (32 0A). BEGIN 3 @71, ends 80 (1E 08). PUT 3 
+BAD H62:  @80: N = 9, size 14, ends 94 (F3 09). ABORT 3 @94, ends 103 (3A 0C). COMMIT FF FF FF FF @103, ends 112 (30 08). BEGIN 00 00 00 C8 (= 200) @112, ends 121 (E3 CD). PUT 200 
+BAD H62:  @121: N = 9, would end at 135; its last 4 bytes are dropped, so 10 bytes 02 00 09 00 00 00 C8 01 71 00 remain. L = 131. 2. Phase 1: p = 4 ... 112: 11 records intact. p = 121: R5 no; R6 L-p = 10; R7 type 2; R8 N = 9; R9 121+5+9 = 135 > 131 -> torn tail at 121: validLength = 121, tornTail = true. 3. Phase 2: BEGIN 4294967295 (0 open) and BEGIN 2 (1 open) open. PUT @22 -> list F = [k=
+BAD H62: ] (R16 76 20 78 ok). PUT @38 (v = 0, 8 = 7+1+0) -> list 2 = [a=
+BAD H62: ]. DELETE @51 (6 = 5+1) -> list 2 = [a=
+BAD H62: , del k]. COMMIT 2: a=
+BAD H62: }; del k: k not in state, nothing. committed [2]. BEGIN 3 (1 open) opens; PUT 3 z=~ (7E ok); ABORT 3 -> dropped, aborted [3]. COMMIT 4294967295: k=
+BAD H62: }; committed [2, 4294967295]. BEGIN 200 (0 open) opens. The PUT @121 is in the torn tail. 4. incomplete [200]. state sorted by key: 
+BAD H62: . 5. The harness copies the input before the call and compares it after; a changed array adds 
+BAD H62:  to the line (PROMPT.md 2: 
+BAD H65:  @13, N = 9, size 14, ends 27 (36 A0). Record @27: type 03, N = 7, payload 00 00 00 01 01 61 62 (DELETE 1 
+BAD H65:  plus one byte 62), size 12, ends 39, correct checksum 82 CF (table above). COMMIT 1 @39, ends 48 (31 09). L = 48. 2. Phase 1: p = 4, 13 intact; p = 27: R6 L-p = 21; R7 type 3; R8 N = 7; R9 39 <= 48; R10 correct -> intact; p = 39 intact; p = 48 = L (R5). 3. Phase 2: BEGIN 1 opens. PUT @13 passes R13-R16, R19 -> write a=1. DELETE @27: R13 N = 7 >= 5; k = payload byte 4 = 01 = 1; N = 5 + k = 6? 7 != 6 -> throw MALFORMED_PAYLOAD at 27. (Ignoring the extra byte would delete 
+BAD H66:  @13: N = 7+1+1017 = 1025 (N bytes 04 01), size 1030, ends 1043 (the same bytes as H16's record @13), and corruptLastChecksum() makes its stored checksum wrong. Nothing follows it. L = 1043. 2. p = 4: intact, p = 13. 3. p = 13: R5 13 != 1043; R6 L-p = 1030; R7 type 2; R8 N = 1025 > MAX_PAYLOAD 1024 -> throw RECORD_TOO_LARGE at 13. R8 comes before R9 and R10, so the torn tail that R10 would give (wrong checksum, 13+5+1025 = 1043 = L) is never reached (section 7.2: 
+BAD H68: Within one record, the first failing check in the order R13, R14, R15, R16, R16a, R17, R18, R19, R19a, R19b, R19c decides the code. So the field checks (R13 to R16a) always come before the transaction checks (R17 to R19c).
+BAD H69:  = byte 0A @13: N = 7+1+1 = 9, size 14, ends 27 (3F 81, table above). COMMIT 1 @27, ends 36 (31 09). L = 36. 2. Phase 1: all intact; p = 36 = L (R5). 3. Phase 2: BEGIN 1 opens. PUT @13 has two problems: value byte 0A (R16) and txn 9, which never had a BEGIN (R19). R13 9 = 7+1+1 ok; R14 txn 9 != 0; R15 key 61 ok; R16 value byte 0A < VALUE_BYTE_MIN 20 -> throw BAD_VALUE at 13. 4. Deciding rule P4: 
+BAD H70:  @22, ends 36 (9F B9). PUT 1 a=1 @36 e50 (36 A0), b=2 @50 e64 (3B A2), c=3 @64 e78 (40 A4), d=4 @78 e92 (45 A6), e=5 @92 e106 (4A A8), f=6 @106 e120 (4F AA), g=7 @120 e134 (54 AC). DELETE 1 
+BAD H70:  @134, size 11, ends 145 (AB 6C). COMMIT 1 @145, ends 154 (31 09). COMMIT 2 @154, ends 163 (32 0A). L = 163. 2. Phase 1: all 13 records intact (types 1-4, N <= 9, each fits, checksums correct); p = 163 = L (R5): validLength = 163, tornTail = false. 3. Phase 2: BEGIN 1 (0 open), BEGIN 2 (1 open) open. PUT 2 @22: R19 open, R19a list2 holds 0 -> list2 [z=0]. PUT 1 @36 ... @120: R19a list1 holds 0, 1, 2, 3, 4, 5, 6 before each -> 7 writes. DELETE 1 @134: R13 6 = 5+1; R14 txn 1; R15 key 61; R19 open; R19a list1 holds 7, not 8 -> list1 has 8 writes = MAX_WRITES (Not errors item 10). Txn 2's write is not in list1 (
+BAD H71:  @13, 27, 41, 55, 69, 83, 97, 111 (each size 14; the last ends 125; checksums 36 A0, 37 A1, 38 A2, 39 A3, 3A A4, 3B A5, 3C A6, 3D A7). PUT 1 
+BAD H71:  @125, ends 139 (3E A8). COMMIT 1 @139, ends 148 (31 09). L = 148. 2. Phase 1: all 11 intact; p = 148 = L (R5). 3. Phase 2: BEGIN 1 opens. PUTs @13 ... @111: R19a list1 holds 0 ... 7 before each -> 8 writes. PUT @125: R13 9 = 7+1+1; R14 txn 1; R15 key 61; R16 value 39; R19 open; R19a list1 already holds 8 = MAX_WRITES -> throw TXN_TOO_LARGE at 125. 4. All 9 PUTs write the key 
+OK  H71: Every PUT and every DELETE in the list counts as one write, also when it writes the same key as another write.
+OK  H72: Every PUT and every DELETE in the list counts as one write
+OK  H73: a ROLLBACK that removes writes frees room for new writes
+BAD H75: SAVEPOINT, ROLLBACK and CHECKPOINT records are not writes and never count
+BAD H76:  = byte 7F @125: N = 7+1+1 = 9, size 14, ends 139 (A4 F6). COMMIT 1 @139, ends 148 (31 09). L = 148. 2. Phase 1: all 11 intact; p = 148 = L (R5). 3. Phase 2: BEGIN 1 opens; the 8 PUTs -> list1 has 8 writes. PUT @125 has two problems: value byte 7F (R16) and a full write list (R19a). R13 9 = 7+1+1 ok; R14 txn 1; R15 key 69 ok; R16 value byte 7F > VALUE_BYTE_MAX 7E -> throw BAD_VALUE at 125. 4. Deciding rule P4: 
+BAD H77:  @134, ends 148 (5E B0). L = 148. 2. Phase 1: all 11 intact; p = 148 = L (R5). 3. Phase 2: BEGIN 1 opens; 8 PUTs -> list1 has 8 writes. COMMIT 1 @125 applies them; txn 1 is no longer open (R22). PUT @134: R13 9 = 7+1+1; R14 txn 1; R15 key 69; R16 value 39; R19 txn 1 is already committed, not open -> throw TXN_NOT_OPEN at 134. (A count of 8 writes kept for txn 1 after its COMMIT would give TXN_TOO_LARGE if checked first.) 4. Deciding rule P4: 
+OK  H78: SAVEPOINT, ROLLBACK: N = 5
+BAD H79: Within one record, the first failing check in the order R13, R14, R15, R16, R16a, R17, R18, R19, R19a, R19b, R19c decides the code.
+BAD H83: So the field checks (R13 to R16a) always come before the transaction checks (R17 to R19c).
+OK  H84: Every range includes both ends
+BAD H85: Within one record, the first failing check in the order R13, R14, R15, R16, R16a, R17, R18, R19, R19a, R19b, R19c decides the code.
+OK  H86: For a SAVEPOINT or ROLLBACK record, BAD_NAME (R16a) comes before TXN_NOT_OPEN (R19).
+OK  H88: For a ROLLBACK record, TXN_NOT_OPEN (R19) comes before NO_SAVEPOINT (R19b).
+OK  H89: Each transaction has its own savepoints: a savepoint of another transaction with the same name does not count
+OK  H91: Moving a savepoint does not change or remove any other savepoint
+OK  H92: a savepoint is set by the SAVEPOINT record that created it or that moved it most recently
+OK  H92: a savepoint that an earlier ROLLBACK removed (R23b) and that no SAVEPOINT record has created again since then
+OK  H93: it stays when its setting record is at a smaller offset
+OK  H93: another savepoint with the same position as s is removed when its setting record is at a larger offset
+OK  H94: The savepoint s itself stays, with the same position n, so a later ROLLBACK can name it again.
+OK  H96: never applied
+BAD H97: SAVEPOINT, ROLLBACK and CHECKPOINT records add nothing to these lists
+OK  H98: Bytes in the torn tail are never checked by phase 2, whatever they contain.
+OK  H99: A phase-1 error anywhere in the log beats a phase-2 error anywhere in the log, even when the phase-2 problem is in an earlier record.
+85 quotes, 62 not found

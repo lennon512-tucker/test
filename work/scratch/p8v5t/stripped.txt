@@ -1,0 +1,263 @@
+==== ../../../wal-recovery/tests/hidden/HiddenTests.java : non-test code ====
+import java.util.ArrayList;
+import java.util.List;
+public final class HiddenTests {
+    private HiddenTests() {}
+    public static List<TestCase> cases() {
+        List<TestCase> c = new ArrayList<>();
+        c.add(<TEST H01>);
+        c.add(<TEST H02>);
+        c.add(<TEST H03>);
+        c.add(<TEST H04>);
+        c.add(<TEST H05>);
+        c.add(<TEST H06>);
+        c.add(<TEST H07>);
+        c.add(<TEST H08>);
+        c.add(<TEST H09>);
+        c.add(<TEST H10>);
+        c.add(<TEST H11>);
+        c.add(<TEST H12>);
+        c.add(<TEST H13>);
+        c.add(<TEST H14>);
+        c.add(<TEST H15>);
+        c.add(<TEST H16>);
+        c.add(<TEST H17>);
+        c.add(<TEST H18>);
+        c.add(<TEST H19>);
+        c.add(<TEST H20>);
+        c.add(<TEST H21>);
+        c.add(<TEST H22>);
+        c.add(<TEST H23>);
+        c.add(<TEST H24>);
+        c.add(<TEST H25>);
+        c.add(<TEST H26>);
+        c.add(<TEST H27>);
+        c.add(<TEST H28>);
+        c.add(<TEST H29>);
+        c.add(<TEST H30>);
+        c.add(<TEST H31>);
+        c.add(<TEST H32>);
+        c.add(<TEST H33>);
+        c.add(<TEST H34>);
+        c.add(<TEST H35>);
+        c.add(<TEST H36>);
+        c.add(<TEST H37>);
+        c.add(<TEST H38>);
+        c.add(<TEST H39>);
+        c.add(<TEST H40>);
+        c.add(<TEST H41>);
+        c.add(<TEST H42>);
+        c.add(<TEST H43>);
+        c.add(<TEST H44>);
+        c.add(<TEST H45>);
+        c.add(<TEST H46>);
+        c.add(<TEST H47>);
+        c.add(<TEST H48>);
+        c.add(<TEST H49>);
+        c.add(<TEST H50>);
+        c.add(<TEST H51>);
+        c.add(<TEST H52>);
+        c.add(<TEST H53>);
+        c.add(<TEST H54>);
+        c.add(<TEST H55>);
+        c.add(<TEST H56>);
+        c.add(<TEST H57>);
+        c.add(<TEST H58>);
+        c.add(<TEST H59>);
+        c.add(<TEST H60>);
+        c.add(<TEST H61>);
+        c.add(<TEST H62>);
+        c.add(<TEST H63>);
+        c.add(<TEST H64>);
+        c.add(<TEST H65>);
+        c.add(<TEST H66>);
+        c.add(<TEST H67>);
+        c.add(<TEST H68>);
+        c.add(<TEST H69>);
+        c.add(<TEST H70>);
+        c.add(<TEST H71>);
+        c.add(<TEST H72>);
+        c.add(<TEST H73>);
+        c.add(<TEST H74>);
+        c.add(<TEST H75>);
+        c.add(<TEST H76>);
+        c.add(<TEST H77>);
+        c.add(<TEST H78>);
+        c.add(<TEST H79>);
+        c.add(<TEST H80>);
+        c.add(<TEST H81>);
+        c.add(<TEST H82>);
+        c.add(<TEST H83>);
+        c.add(<TEST H84>);
+        c.add(<TEST H85>);
+        c.add(<TEST H86>);
+        c.add(<TEST H87>);
+        c.add(<TEST H88>);
+        c.add(<TEST H89>);
+        c.add(<TEST H90>);
+        c.add(<TEST H91>);
+        c.add(<TEST H92>);
+        c.add(<TEST H93>);
+        c.add(<TEST H94>);
+        c.add(<TEST H95>);
+        c.add(<TEST H96>);
+        c.add(<TEST H97>);
+        c.add(<TEST H98>);
+        c.add(<TEST H99>);
+        c.add(<TEST H100>);
+        c.add(<TEST H101>);
+        c.add(<TEST H102>);
+        c.add(<TEST H103>);
+        c.add(<TEST H104>);
+        c.add(<TEST H105>);
+        c.add(<TEST H106>);
+        c.add(<TEST H107>);
+        c.add(<TEST H108>);
+        c.add(<TEST H109>);
+        c.add(<TEST H110>);
+        c.add(<TEST H111>);
+        c.add(<TEST H112>);
+        c.add(<TEST H113>);
+        c.add(<TEST H114>);
+        c.add(<TEST H115>);
+        c.add(<TEST H116>);
+        c.add(<TEST H117>);
+        c.add(<TEST H118>);
+        c.add(<TEST H119>);
+        c.add(<TEST H120>);
+        c.add(<TEST H121>);
+        c.add(<TEST H122>);
+        c.add(<TEST H123>);
+        c.add(<TEST H124>);
+        c.add(<TEST H125>);
+        c.add(<TEST H126>);
+        c.add(<TEST H127>);
+        c.add(<TEST H128>);
+        c.add(<TEST H129>);
+        c.add(<TEST H130>);
+        c.add(<TEST H131>);
+        c.add(<TEST H132>);
+        c.add(<TEST H133>);
+        c.add(<TEST H134>);
+        c.add(<TEST H135>);
+        c.add(<TEST H136>);
+        c.add(<TEST H137>);
+        c.add(<TEST H138>);
+        c.add(<TEST H139>);
+        c.add(<TEST H140>);
+        c.add(<TEST H141>);
+        c.add(<TEST H142>);
+        c.add(<TEST H143>);
+        c.add(<TEST H144>);
+        c.add(<TEST H145>);
+        c.add(<TEST H146>);
+        c.add(<TEST H147>);
+        c.add(<TEST H148>);
+        c.add(<TEST H149>);
+        c.add(<TEST H150>);
+        c.add(<TEST H151>);
+        c.add(<TEST H152>);
+        c.add(<TEST H153>);
+        c.add(<TEST H154>);
+        c.add(<TEST H155>);
+        c.add(<TEST H156>);
+        c.add(<TEST H157>);
+        c.add(<TEST H158>);
+        c.add(<TEST H159>);
+        c.add(<TEST H160>);
+        c.add(<TEST H161>);
+        c.add(<TEST H162>);
+        return c;
+    }
+    private static String key7(char p, int n) { return p + String.format("%06d", n); }
+    private static LogBuilder base8(LogBuilder b, int keys, long firstTxn) {
+        long t = firstTxn;
+        for (int i = 0; i < keys; i += 8) {
+            b.begin(t);
+            for (int j = i; j < i + 8; j++) b.put(t, key7('k', j), "v");
+            b.commit(t);
+            t++;
+        }
+        return b;
+    }
+    private static byte[] scaleManyReaders() {
+        LogBuilder b = LogBuilder.wal();
+        for (long t = 1; t <= 500000; t++) b.begin(t).readAbsent(t, "z").commit(t);
+        return b.begin(500001).read(500001, "z", "x").build();
+    }
+    private static byte[] scaleLargeState() {
+        LogBuilder b = base8(LogBuilder.wal(), 100000, 2);
+        for (long t = 12502; t < 12502 + 400000; t++) b.begin(t).readAbsent(t, "z").commit(t);
+        return b.begin(412502).read(412502, "k000000", "w").build();
+    }
+    private static byte[] scaleLongReader() {
+        LogBuilder b = LogBuilder.wal();
+        for (long t = 2; t <= 175001; t++) b.begin(t).put(t, "a", "x").commit(t);
+        b.begin(1);
+        for (long t = 175002; t <= 350001; t++) b.begin(t).put(t, "a", "y").commit(t);
+        for (int i = 0; i < 300000; i++) b.read(1, "a", "x");
+        return b.read(1, "a", "y").build();
+    }
+    private static byte[] scaleRangeLargeState() {
+        LogBuilder b = base8(LogBuilder.wal(), 100000, 2).begin(1);
+        for (int i = 0; i < 300000; i++) b.range(1, "k000000", "k999999", 100000);
+        return b.range(1, "k000000", "k999999", 99999).build();
+    }
+    private static byte[] scaleRangeGrowing() {
+        LogBuilder b = base8(LogBuilder.wal(), 50000, 2).begin(1);
+        for (int i = 0; i < 150000; i++) {
+            long t = 6252 + i;
+            b.begin(t).put(t, key7('k', 50000 + i), "w").commit(t).range(1, "k000000", "k999999", 50000);
+        }
+        return b.range(1, "k000000", "k999999", 200000).build();
+    }
+    private static byte[] scaleManyRanges() {
+        LogBuilder b = LogBuilder.wal().begin(1);
+        for (int i = 0; i < 200000; i++) b.range(1, "a", "a", 0);
+        for (long t = 2; t <= 250001; t++) b.begin(t).put(t, key7('b', (int) t), "x").commit(t);
+        return b.commit(1).readAbsent(1, "a").build();
+    }
+}
+==== ../../../wal-recovery/tests/hidden/HiddenTests.java : tests ====
+H09: LogBuilder.wal().begin(1).bytes(0x0B, 0x00, 0x00).build()
+H11: LogBuilder.wal().record(11, Hex.bytes("00 00 00 01")).begin(1).build()
+H20: LogBuilder.wal().begin(1).frame(11, 4, Hex.bytes("00 00 00 01"), 0x0000).build()
+H124: LogBuilder.wal().begin(1).put(1, "a", "1").read(1, "a", "1").commit(1).build()
+H125: LogBuilder.wal().begin(1).begin(2).put(2, "a", "2").commit(2).readAbsent(1, "a").abort(1).build()
+H126: LogBuilder.wal().begin(1).begin(2).put(2, "a", "2").commit(2).read(1, "a", "2").abort(1).build()
+H127: LogBuilder.wal().begin(1).put(1, "a", "1").commit(1).begin(2).del(2, "a").readAbsent(2, "a").commit(2).build()
+H128: LogBuilder.wal().begin(1).put(1, "a", "1").commit(1).begin(2).savepoint(2, 0x73).put(2, "a", "9") .rollback(2, 0x73).read(2, "a", "1").commit(2).build()
+H129: LogBuilder.wal().begin(1).begin(2).readAbsent(1, "a").put(1, "b", "1").put(2, "a", "2") .commit(2).commit(1).build()
+H130: LogBuilder.wal().begin(1).begin(2).put(1, "a", "1").put(2, "a", "2").commit(2).commit(1).build()
+H131: LogBuilder.wal().begin(1).begin(2).begin(3).readAbsent(3, "b").readAbsent(1, "a").put(2, "a", "2") .put(1, "b", "1").commit(2).commit(1).commit(3).build()
+H132: LogBuilder.wal().begin(2).put(2, "a", "2").commit(2).begin(1).read(1, "a", "2").commit(1).build()
+H133: LogBuilder.wal().begin(1).begin(2).readAbsent(1, "a").savepoint(2, 0x73).put(2, "a", "2") .rollback(2, 0x73).put(2, "b", "2").commit(2).commit(1).build()
+H134: LogBuilder.wal().begin(1).begin(2).savepoint(1, 0x73).readAbsent(1, "a").rollback(1, 0x73) .put(2, "a", "2").commit(2).commit(1).build()
+H135: LogBuilder.wal().begin(1).begin(2).readAbsent(1, "a").del(2, "a").commit(2).commit(1).build()
+H136: LogBuilder.wal().begin(1).record(9, Hex.bytes("00 00 00 01 01 61 02")).commit(1).build()
+H137: LogBuilder.wal().begin(1).record(9, Hex.bytes("00 00 00 01 01 61 01 00 02 31")).commit(1).build()
+H138: LogBuilder.wal().begin(1).read(7, "a", "x").commit(1).build()
+H139: LogBuilder.wal().begin(1).read(1, "a", "\u007f").commit(1).build()
+H140: LogBuilder.wal().begin(1).readAbsent(1, "a b").commit(1).build()
+H141: LogBuilder.wal().begin(1).put(1, "a", "1").commit(1).begin(2).read(2, "a", "9").corruptLastChecksum().build()
+H142: LogBuilder.wal().begin(1).put(1, "a", "1").put(1, "b", "1").put(1, "c", "1").commit(1) .begin(2).del(2, "b").put(2, "d", "1").range(2, "a", "c", 2).range(2, "a", "d", 3).commit(2).build()
+H143: LogBuilder.wal().begin(1).begin(2).put(2, "a", "1").commit(2).range(1, "!", "~", 0).abort(1).build()
+H144: LogBuilder.wal().begin(1).begin(2).put(2, "a", "1").commit(2).range(1, "!", "~", 1).abort(1).build()
+H145: LogBuilder.wal().begin(1).put(1, "b", "1").commit(1).begin(2).range(2, "c", "a", 0).commit(2).build()
+H146: LogBuilder.wal().begin(1).put(1, "b", "1").commit(1).begin(2).range(2, "c", "a", 1).commit(2).build()
+H147: LogBuilder.wal().begin(1).put(1, "a", "1").put(1, "ab", "1").put(1, "b", "1").commit(1).begin(2) .range(2, "a", "a", 1).range(2, "ab", "b", 2).range(2, "aa", "az", 1).commit(2).build()
+H148: LogBuilder.wal().begin(1).begin(2).range(1, "a", "c", 0).put(2, "b", "1").commit(2).commit(1).build()
+H149: LogBuilder.wal().begin(1).begin(2).range(1, "a", "c", 0).put(2, "d", "1").commit(2).commit(1).build()
+H150: LogBuilder.wal().begin(1).begin(2).range(1, "c", "a", 0).put(2, "b", "1").commit(2).commit(1).build()
+H151: LogBuilder.wal().begin(1).begin(2).put(2, "b", "1").commit(2).range(1, "a", "c", 0).commit(1).build()
+H152: LogBuilder.wal().begin(1).record(10, Hex.bytes("00 00 00 01 01 61 01 63 00 00 00")).commit(1).build()
+H153: LogBuilder.wal().begin(1).range(1, "a", "c d", 0).commit(1).build()
+H154: LogBuilder.wal().begin(1).range(1, "", "c", 0).commit(1).build()
+H155: LogBuilder.wal().begin(1).range(9, "a", "c", 5).commit(1).build()
+H156: LogBuilder.wal().begin(1).put(1, "a", "1").del(1, "a").range(1, "a", "a", 0).readAbsent(1, "a").commit(1).build()
+H157: scaleManyReaders()
+H158: scaleLargeState()
+H159: scaleLongReader()
+H160: scaleRangeLargeState()
+H161: scaleRangeGrowing()
+H162: scaleManyRanges()

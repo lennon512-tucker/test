@@ -1,0 +1,5 @@
+attempt 1: HTTP 200 finish=stop model=gemini-4-carbon prompt_tokens=13200 (baseline 13200) out=11254 retries=0 rule=first_java_block public: 5 / 5 passed | hidden: 172 / 173 passed
+attempt 2: HTTP 200 finish=stop model=gemini-4-carbon prompt_tokens=15429 (baseline 13200) out=13054 retries=0 rule=first_java_block public: 5 / 5 passed | hidden: 173 / 173 passed
+attempt 3: HTTP 200 finish=stop model=gemini-4-carbon prompt_tokens=15429 (baseline 13200) out=15294 retries=0 rule=first_java_block public: 5 / 5 passed | hidden: 173 / 173 passed
+attempt 4: HTTP 200 finish=stop model=gemini-4-carbon prompt_tokens=15429 (baseline 13200) out=14719 retries=0 rule=first_java_block public: 5 / 5 passed | hidden: 173 / 173 passed
+attempt 5: HTTP 200 finish=stop model=gemini-4-carbon prompt_tokens=15429 (baseline 13200) out=13000 retries=0 rule=first_java_block public: 5 / 5 passed | hidden: 172 / 173 passed
